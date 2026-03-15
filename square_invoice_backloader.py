@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backload legacy invoices into Square and optionally mark them paid."""
+"""Backload legacy invoices into Square and close them out by cancellation."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import time
 import sys
 import uuid
 from dataclasses import dataclass
@@ -225,7 +226,7 @@ class SquareClient:
                 "delivery_method": "SHARE_MANUALLY",
                 "title": f"Legacy Invoice {invoice.invoice_number}",
                 "description": invoice.service_notes or "Imported from historical invoice records.",
-                "invoice_number": f"LEGACY-{invoice.invoice_number}",
+                "invoice_number": f"LEGACY-{invoice.invoice_number}-{int(time.time())}",
                 "accepted_payment_methods": {
                     "card": True,
                     "square_gift_card": False,
@@ -248,46 +249,12 @@ class SquareClient:
         response = self._request("POST", f"/v2/invoices/{invoice_id}/publish", payload)
         return response["invoice"]
 
-    def record_manual_payment(
-        self,
-        order_id: str,
-        amount: Decimal,
-        invoice_number: str,
-        *,
-        method: str = "CASH",
-    ) -> Dict[str, Any]:
-        cents = money_to_cents(amount)
-        method = method.upper()
+    def cancel_invoice(self, invoice_id: str, version: int) -> Dict[str, Any]:
         payload = {
-            "idempotency_key": str(uuid.uuid4()),
-            "source_id": method,
-            "location_id": self.location_id,
-            "order_id": order_id,
-            "note": f"Legacy migration payment for invoice #{invoice_number}",
-            "amount_money": {
-                "amount": cents,
-                "currency": DEFAULT_CURRENCY,
-            },
+            "version": version,
         }
-
-        if method == "EXTERNAL":
-            payload["external_details"] = {
-                "type": "OTHER",
-                "source": "Legacy invoice migration",
-            }
-        elif method == "CASH":
-            payload["cash_details"] = {
-                "buyer_supplied_money": {
-                    "amount": cents,
-                    "currency": DEFAULT_CURRENCY,
-                },
-                "change_back_money": {
-                    "amount": 0,
-                    "currency": DEFAULT_CURRENCY,
-                },
-            }
-
-        return self._request("POST", "/v2/payments", payload)
+        response = self._request("POST", f"/v2/invoices/{invoice_id}/cancel", payload)
+        return response["invoice"]
 
 
 def load_legacy_invoices(path: str) -> List[LegacyInvoice]:
@@ -320,22 +287,31 @@ def run_import(path: str, dry_run: bool) -> int:
     invoices = load_legacy_invoices(path)
     print(f"Loaded {len(invoices)} invoices from {path}")
 
+    succeeded = 0
+    failed = 0
+
     for invoice in invoices:
         print(f"\nProcessing invoice #{invoice.invoice_number} for {invoice.customer_name}")
         if dry_run:
-            print("[DRY-RUN] would create customer, order, invoice, publish, and mark paid.")
+            print("[DRY-RUN] would create customer, order, invoice, publish, and cancel (close-out strategy).")
+            succeeded += 1
             continue
 
-        customer_id = client.upsert_customer(invoice)
-        order_id = client.create_order(invoice, customer_id)
-        draft = client.create_invoice(invoice, order_id, customer_id)
-        published = client.publish_invoice(draft["id"], draft["version"])
-        published_order_id = published.get("order_id") or order_id
-        payment_method = os.getenv("SQUARE_MANUAL_PAYMENT_METHOD", "CASH")
-        client.record_manual_payment(published_order_id, invoice.total_due, invoice.invoice_number, method=payment_method)
-        print(f"Invoice {published['id']} published and marked paid.")
+        try:
+            customer_id = client.upsert_customer(invoice)
+            created_order_id = client.create_order(invoice, customer_id)
+            draft = client.create_invoice(invoice, created_order_id, customer_id)
+            published = client.publish_invoice(draft["id"], draft["version"])
+            canceled = client.cancel_invoice(published["id"], published["version"])
 
-    return 0
+            print(f"Invoice {published['id']} published then canceled (status={canceled.get('status')}).")
+            succeeded += 1
+        except SquareAPIError as exc:
+            failed += 1
+            print(f"ERROR: {exc}")
+
+    print(f"\nImport complete. Success: {succeeded}, Failed: {failed}")
+    return 1 if failed else 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -356,11 +332,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Iterable[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    try:
-        return args.func(args)
-    except SquareAPIError as exc:
-        print(f"ERROR: {exc}")
-        return 1
+    return args.func(args)
 
 
 if __name__ == "__main__":

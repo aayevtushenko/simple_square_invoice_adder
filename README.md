@@ -59,6 +59,21 @@ python square_invoice_backloader.py import --input results.json --dry-run
 python square_invoice_backloader.py import --input results.json
 ```
 
+### 4) Cleanup utility (delete imported invoices)
+
+If you need to re-run imports and reuse legacy invoice numbers, use the cleanup tool:
+
+```bash
+python square_invoice_cleanup.py cleanup --input results.json --dry-run
+python square_invoice_cleanup.py cleanup --input results.json
+```
+
+Notes:
+- It matches invoices by `Invoice_Number` from input (and automatically checks `LEGACY-<Invoice_Number>`).
+- If your JSON also includes `Square_Invoice_ID`/`Invoice_ID`, those IDs are deleted directly.
+- This only deletes invoices in Square; it does not remove customers or orders.
+
+
 ## Input format expectations
 
 The input JSON should contain:

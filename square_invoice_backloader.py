@@ -343,23 +343,30 @@ def run_import(path: str, dry_run: bool) -> int:
             published = client.publish_invoice(draft["id"], draft["version"])
 
             payment_method = os.getenv("SQUARE_MANUAL_PAYMENT_METHOD", "CASH")
-            preferred_order_id = published.get("order_id") or created_order_id
-            try:
-                client.record_manual_payment(preferred_order_id, invoice.total_due, invoice.invoice_number, method=payment_method)
-            except SquareAPIError as payment_error:
-                if preferred_order_id != created_order_id and is_order_ownership_forbidden(payment_error):
-                    print(
-                        "Payment rejected for published order ownership. "
-                        "Retrying with the freshly-created order id."
-                    )
-                    client.record_manual_payment(
-                        created_order_id,
-                        invoice.total_due,
-                        invoice.invoice_number,
-                        method=payment_method,
-                    )
-                else:
+            order_ids_to_try = [
+                published.get("order_id"),
+                draft.get("order_id"),
+                created_order_id,
+            ]
+            tried_order_ids = []
+            last_payment_error: Optional[SquareAPIError] = None
+            for order_id in order_ids_to_try:
+                if not order_id or order_id in tried_order_ids:
+                    continue
+                tried_order_ids.append(order_id)
+                try:
+                    client.record_manual_payment(order_id, invoice.total_due, invoice.invoice_number, method=payment_method)
+                    last_payment_error = None
+                    break
+                except SquareAPIError as payment_error:
+                    last_payment_error = payment_error
+                    if is_order_ownership_forbidden(payment_error):
+                        print(f"Payment rejected for order {order_id} ownership. Trying next candidate order id.")
+                        continue
                     raise
+
+            if last_payment_error is not None:
+                raise last_payment_error
 
             print(f"Invoice {published['id']} published and marked paid.")
             succeeded += 1

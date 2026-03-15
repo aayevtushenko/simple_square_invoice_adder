@@ -233,7 +233,6 @@ class SquareClient:
         payload = {
             "idempotency_key": str(uuid.uuid4()),
             "version": version,
-            "sent_at": None,
         }
         response = self._request("POST", f"/v2/invoices/{invoice_id}/publish", payload)
         return response["invoice"]
@@ -244,7 +243,7 @@ class SquareClient:
             "payment": {
                 "payment_type": "EXTERNAL",
                 "external_details": {
-                    "type": "CARD",
+                    "type": "CASH",
                     "source": "Legacy migration",
                 },
                 "amount_money": {

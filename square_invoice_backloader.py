@@ -60,6 +60,25 @@ def parse_iso_date(value: Optional[str], *, fallback: dt.date) -> dt.date:
         return fallback
 
 
+def compute_schedule_and_due_dates(
+    invoice_date: dt.date,
+    due_date: dt.date,
+    *,
+    today: Optional[dt.date] = None,
+) -> tuple[dt.date, dt.date]:
+    """Return a valid (scheduled_date, due_date) pair for Square invoices.
+
+    Square requires due_date to be on or after scheduled_date.
+    """
+    if today is None:
+        today = dt.date.today()
+    preferred_scheduled_date = min(invoice_date, due_date)
+    earliest_publish_date = today + dt.timedelta(days=1)
+    scheduled_date = max(preferred_scheduled_date, earliest_publish_date)
+    adjusted_due_date = max(due_date, scheduled_date)
+    return scheduled_date, adjusted_due_date
+
+
 def parse_record(record: Dict[str, Any]) -> LegacyInvoice:
     flattened = {item["key"]: item.get("value") for item in record.get("results", [])}
 
@@ -195,9 +214,11 @@ class SquareClient:
         today = dt.date.today()
         invoice_date = parse_iso_date(invoice.invoice_date, fallback=today)
         due_date_obj = parse_iso_date(invoice.due_date, fallback=today)
-        preferred_scheduled_date = min(invoice_date, due_date_obj)
-        earliest_publish_date = today + dt.timedelta(days=1)
-        scheduled_date = max(preferred_scheduled_date, earliest_publish_date)
+        scheduled_date, adjusted_due_date = compute_schedule_and_due_dates(
+            invoice_date,
+            due_date_obj,
+            today=today,
+        )
         payload = {
             "idempotency_key": str(uuid.uuid4()),
             "invoice": {
@@ -208,7 +229,7 @@ class SquareClient:
                 "payment_requests": [
                     {
                         "request_type": "BALANCE",
-                        "due_date": due_date_obj.isoformat(),
+                        "due_date": adjusted_due_date.isoformat(),
                         "tipping_enabled": False,
                         "automatic_payment_source": "NONE",
                     }

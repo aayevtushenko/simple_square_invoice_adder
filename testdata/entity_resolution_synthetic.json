@@ -1,0 +1,1194 @@
+{
+  "records": [
+    {
+      "results": [
+        {
+          "key": "Invoice_Number",
+          "value": "4001",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999464,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Invoice_Date",
+          "value": "2026-03-11",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999993,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Name",
+          "value": "Ken Chung",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999666,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Address",
+          "value": "249 4th St. Jersey City, NJ 07302",
+          "field_type": "TEXT",
+          "model_confidence": 0.98057026,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Phone_Number",
+          "value": "6467100278",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999778,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Email",
+          "value": "kennethwkabcchung@gmail.com",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999046,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Service_Notes",
+          "value": "Re-keyed levers on apt.1 & 2",
+          "field_type": "TEXT",
+          "model_confidence": 0.99998033,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Payment_Terms",
+          "value": "Due on Receipt",
+          "field_type": "TEXT",
+          "model_confidence": 0.99997747,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Due_Date",
+          "value": "2026-03-11",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999565,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Line_Items",
+          "value": "[{\"Quantity\": \"1\", \"Description\": \"Service Charge\", \"Unit Price\": \"125.00\", \"Line Total\": \"125.00\"}, {\"Quantity\": \"2\", \"Description\": \"Re-key cylinder\", \"Unit Price\": \"15.00\", \"Line Total\": \"30.00\"}]",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999869,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Subtotal",
+          "value": "155.00",
+          "field_type": "TEXT",
+          "model_confidence": 0.999998,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Sales_Tax",
+          "value": "10.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.99995697,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Total_Amount_Due",
+          "value": "165.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999974,
+          "ocr_confidence": 1.0
+        }
+      ]
+    },
+    {
+      "results": [
+        {
+          "key": "Invoice_Number",
+          "value": "4002",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999464,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Invoice_Date",
+          "value": "2026-03-11",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999993,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Name",
+          "value": "Kenneth Chung",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999666,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Address",
+          "value": "249 4th Street Jersey City NJ 07302",
+          "field_type": "TEXT",
+          "model_confidence": 0.98057026,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Phone_Number",
+          "value": "(646)710-0278",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999778,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Email",
+          "value": "kennethwkabcchung+legacy@gmail.com",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999046,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Service_Notes",
+          "value": "Re-keyed levers on apt.1 & 2",
+          "field_type": "TEXT",
+          "model_confidence": 0.99998033,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Payment_Terms",
+          "value": "Due on Receipt",
+          "field_type": "TEXT",
+          "model_confidence": 0.99997747,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Due_Date",
+          "value": "2026-03-11",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999565,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Line_Items",
+          "value": "[{\"Quantity\": \"1\", \"Description\": \"Service Charge\", \"Unit Price\": \"125.00\", \"Line Total\": \"125.00\"}, {\"Quantity\": \"2\", \"Description\": \"Re-key cylinder\", \"Unit Price\": \"15.00\", \"Line Total\": \"30.00\"}]",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999869,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Subtotal",
+          "value": "155.00",
+          "field_type": "TEXT",
+          "model_confidence": 0.999998,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Sales_Tax",
+          "value": "10.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.99995697,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Total_Amount_Due",
+          "value": "165.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999974,
+          "ocr_confidence": 1.0
+        }
+      ]
+    },
+    {
+      "results": [
+        {
+          "key": "Invoice_Number",
+          "value": "4003",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999464,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Invoice_Date",
+          "value": "2026-03-11",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999993,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Name",
+          "value": "Ken Chugn",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999666,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Address",
+          "value": "249 4th St Jersey Cty, NJ 07302",
+          "field_type": "TEXT",
+          "model_confidence": 0.98057026,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Phone_Number",
+          "value": "646-710-0278",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999778,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Email",
+          "value": "kenethwkabcchung@gmail.com",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999046,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Service_Notes",
+          "value": "Re-keyed levers on apt.1 & 2",
+          "field_type": "TEXT",
+          "model_confidence": 0.99998033,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Payment_Terms",
+          "value": "Due on Receipt",
+          "field_type": "TEXT",
+          "model_confidence": 0.99997747,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Due_Date",
+          "value": "2026-03-11",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999565,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Line_Items",
+          "value": "[{\"Quantity\": \"1\", \"Description\": \"Service Charge\", \"Unit Price\": \"125.00\", \"Line Total\": \"125.00\"}, {\"Quantity\": \"2\", \"Description\": \"Re-key cylinder\", \"Unit Price\": \"15.00\", \"Line Total\": \"30.00\"}]",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999869,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Subtotal",
+          "value": "155.00",
+          "field_type": "TEXT",
+          "model_confidence": 0.999998,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Sales_Tax",
+          "value": "10.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.99995697,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Total_Amount_Due",
+          "value": "165.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999974,
+          "ocr_confidence": 1.0
+        }
+      ]
+    },
+    {
+      "results": [
+        {
+          "key": "Invoice_Number",
+          "value": "4004",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999464,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Invoice_Date",
+          "value": "2026-03-11",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999993,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Name",
+          "value": "K. Chung",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999666,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Address",
+          "value": "249 4th St. Jersey City NJ 7302",
+          "field_type": "TEXT",
+          "model_confidence": 0.98057026,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Phone_Number",
+          "value": "6467100287",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999778,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Email",
+          "value": "kennethwkabcchung@gmail.com",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999046,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Service_Notes",
+          "value": "Re-keyed levers on apt.1 & 2",
+          "field_type": "TEXT",
+          "model_confidence": 0.99998033,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Payment_Terms",
+          "value": "Due on Receipt",
+          "field_type": "TEXT",
+          "model_confidence": 0.99997747,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Due_Date",
+          "value": "2026-03-11",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999565,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Line_Items",
+          "value": "[{\"Quantity\": \"1\", \"Description\": \"Service Charge\", \"Unit Price\": \"125.00\", \"Line Total\": \"125.00\"}, {\"Quantity\": \"2\", \"Description\": \"Re-key cylinder\", \"Unit Price\": \"15.00\", \"Line Total\": \"30.00\"}]",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999869,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Subtotal",
+          "value": "155.00",
+          "field_type": "TEXT",
+          "model_confidence": 0.999998,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Sales_Tax",
+          "value": "10.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.99995697,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Total_Amount_Due",
+          "value": "165.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999974,
+          "ocr_confidence": 1.0
+        }
+      ]
+    },
+    {
+      "results": [
+        {
+          "key": "Invoice_Number",
+          "value": "4005",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999976,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Invoice_Date",
+          "value": "2026-03-01",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999833,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Name",
+          "value": "Shmiegel Precious",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999154,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Address",
+          "value": "999999 4th St.Bayonne, NJ 07302",
+          "field_type": "TEXT",
+          "model_confidence": 0.84043664,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Phone_Number",
+          "value": "2014544449",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999876,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Email",
+          "value": "beeboop@gmail.com",
+          "field_type": "TEXT",
+          "model_confidence": 0.99997926,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Service_Notes",
+          "value": "Opened attic with crowbar",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999869,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Payment_Terms",
+          "value": "Due on Receipt",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999344,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Due_Date",
+          "value": "2026-03-01",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999896,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Line_Items",
+          "value": "[{\"Quantity\": \"1\", \"Description\": \"Service Charge\", \"Unit Price\": \"12.00\", \"Line Total\": \"12.00\"}, {\"Quantity\": \"2\", \"Description\": \"Re-key cylinder\", \"Unit Price\": \"2.00\", \"Line Total\": \"2.00\"}]",
+          "field_type": "TEXT",
+          "model_confidence": 0.99995136,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Subtotal",
+          "value": "123.00",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999981,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Sales_Tax",
+          "value": "0.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999938,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Total_Amount_Due",
+          "value": "123.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.99996173,
+          "ocr_confidence": 1.0
+        }
+      ]
+    },
+    {
+      "results": [
+        {
+          "key": "Invoice_Number",
+          "value": "4006",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999976,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Invoice_Date",
+          "value": "2026-03-01",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999833,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Name",
+          "value": "Smiegel Precious",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999154,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Address",
+          "value": "999999 4th St Bayonne NJ 07302",
+          "field_type": "TEXT",
+          "model_confidence": 0.84043664,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Phone_Number",
+          "value": "201-454-4449",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999876,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Email",
+          "value": "beeboop@gmail.com",
+          "field_type": "TEXT",
+          "model_confidence": 0.99997926,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Service_Notes",
+          "value": "Opened attic with crowbar",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999869,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Payment_Terms",
+          "value": "Due on Receipt",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999344,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Due_Date",
+          "value": "2026-03-01",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999896,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Line_Items",
+          "value": "[{\"Quantity\": \"1\", \"Description\": \"Service Charge\", \"Unit Price\": \"12.00\", \"Line Total\": \"12.00\"}, {\"Quantity\": \"2\", \"Description\": \"Re-key cylinder\", \"Unit Price\": \"2.00\", \"Line Total\": \"2.00\"}]",
+          "field_type": "TEXT",
+          "model_confidence": 0.99995136,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Subtotal",
+          "value": "123.00",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999981,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Sales_Tax",
+          "value": "0.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999938,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Total_Amount_Due",
+          "value": "123.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.99996173,
+          "ocr_confidence": 1.0
+        }
+      ]
+    },
+    {
+      "results": [
+        {
+          "key": "Invoice_Number",
+          "value": "4007",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999976,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Invoice_Date",
+          "value": "2026-03-01",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999833,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Name",
+          "value": "Shmiegel P.",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999154,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Address",
+          "value": "999999 4th Street Bayonne, NJ 07302",
+          "field_type": "TEXT",
+          "model_confidence": 0.84043664,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Phone_Number",
+          "value": "201454449",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999876,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Email",
+          "value": "beeboop+old@gmail.com",
+          "field_type": "TEXT",
+          "model_confidence": 0.99997926,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Service_Notes",
+          "value": "Opened attic with crowbar",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999869,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Payment_Terms",
+          "value": "Due on Receipt",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999344,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Due_Date",
+          "value": "2026-03-01",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999896,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Line_Items",
+          "value": "[{\"Quantity\": \"1\", \"Description\": \"Service Charge\", \"Unit Price\": \"12.00\", \"Line Total\": \"12.00\"}, {\"Quantity\": \"2\", \"Description\": \"Re-key cylinder\", \"Unit Price\": \"2.00\", \"Line Total\": \"2.00\"}]",
+          "field_type": "TEXT",
+          "model_confidence": 0.99995136,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Subtotal",
+          "value": "123.00",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999981,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Sales_Tax",
+          "value": "0.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999938,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Total_Amount_Due",
+          "value": "123.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.99996173,
+          "ocr_confidence": 1.0
+        }
+      ]
+    },
+    {
+      "results": [
+        {
+          "key": "Invoice_Number",
+          "value": "4008",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999976,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Invoice_Date",
+          "value": "2026-03-01",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999833,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Name",
+          "value": "Shmiegal Precious",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999154,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Address",
+          "value": "999999 4th St. Bayone, NJ 07302",
+          "field_type": "TEXT",
+          "model_confidence": 0.84043664,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Phone_Number",
+          "value": "2014544449",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999876,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Email",
+          "value": "beeboop@gmail.com",
+          "field_type": "TEXT",
+          "model_confidence": 0.99997926,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Service_Notes",
+          "value": "Opened attic with crowbar",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999869,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Payment_Terms",
+          "value": "Due on Receipt",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999344,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Due_Date",
+          "value": "2026-03-01",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999896,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Line_Items",
+          "value": "[{\"Quantity\": \"1\", \"Description\": \"Service Charge\", \"Unit Price\": \"12.00\", \"Line Total\": \"12.00\"}, {\"Quantity\": \"2\", \"Description\": \"Re-key cylinder\", \"Unit Price\": \"2.00\", \"Line Total\": \"2.00\"}]",
+          "field_type": "TEXT",
+          "model_confidence": 0.99995136,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Subtotal",
+          "value": "123.00",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999981,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Sales_Tax",
+          "value": "0.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999938,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Total_Amount_Due",
+          "value": "123.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.99996173,
+          "ocr_confidence": 1.0
+        }
+      ]
+    },
+    {
+      "results": [
+        {
+          "key": "Invoice_Number",
+          "value": "4009",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999962,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Invoice_Date",
+          "value": "2026-03-09",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999857,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Name",
+          "value": "Rosalie Chung",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999962,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Address",
+          "value": "349 4th St. HOBOKEN, NJ 07302",
+          "field_type": "TEXT",
+          "model_confidence": 0.7474578,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Phone_Number",
+          "value": "2016744334",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999926,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Email",
+          "value": "aayevtushenko@gmail.com",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999863,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Service_Notes",
+          "value": "Re-keyed levers on apt.1 & 2",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999635,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Payment_Terms",
+          "value": "Due on Receipt",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999913,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Due_Date",
+          "value": "2026-03-11",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999297,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Line_Items",
+          "value": "[{\"Quantity\": \"1\", \"Description\": \"Service Charge\", \"Unit Price\": \"12.00\", \"Line Total\": \"12.00\"}, {\"Quantity\": \"2\", \"Description\": \"Re-key cylinder\", \"Unit Price\": \"2.00\", \"Line Total\": \"2.00\"}]",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999653,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Subtotal",
+          "value": "123.00",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999845,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Sales_Tax",
+          "value": "0.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999908,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Total_Amount_Due",
+          "value": "123.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999535,
+          "ocr_confidence": 1.0
+        }
+      ]
+    },
+    {
+      "results": [
+        {
+          "key": "Invoice_Number",
+          "value": "4010",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999962,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Invoice_Date",
+          "value": "2026-03-09",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999857,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Name",
+          "value": "Rosalee Chung",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999962,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Address",
+          "value": "349 4th Street Hoboken NJ 07302",
+          "field_type": "TEXT",
+          "model_confidence": 0.7474578,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Phone_Number",
+          "value": "(201)674-4334",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999926,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Email",
+          "value": "aayevtushenko+legacy@gmail.com",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999863,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Service_Notes",
+          "value": "Re-keyed levers on apt.1 & 2",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999635,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Payment_Terms",
+          "value": "Due on Receipt",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999913,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Due_Date",
+          "value": "2026-03-11",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999297,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Line_Items",
+          "value": "[{\"Quantity\": \"1\", \"Description\": \"Service Charge\", \"Unit Price\": \"12.00\", \"Line Total\": \"12.00\"}, {\"Quantity\": \"2\", \"Description\": \"Re-key cylinder\", \"Unit Price\": \"2.00\", \"Line Total\": \"2.00\"}]",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999653,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Subtotal",
+          "value": "123.00",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999845,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Sales_Tax",
+          "value": "0.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999908,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Total_Amount_Due",
+          "value": "123.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999535,
+          "ocr_confidence": 1.0
+        }
+      ]
+    },
+    {
+      "results": [
+        {
+          "key": "Invoice_Number",
+          "value": "4011",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999962,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Invoice_Date",
+          "value": "2026-03-09",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999857,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Name",
+          "value": "R. Chung",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999962,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Address",
+          "value": "349 4th St Hoboken, NJ 07302",
+          "field_type": "TEXT",
+          "model_confidence": 0.7474578,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Phone_Number",
+          "value": "201-674-4334",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999926,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Email",
+          "value": "aayevtushenko@gmail.co",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999863,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Service_Notes",
+          "value": "Re-keyed levers on apt.1 & 2",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999635,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Payment_Terms",
+          "value": "Due on Receipt",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999913,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Due_Date",
+          "value": "2026-03-11",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999297,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Line_Items",
+          "value": "[{\"Quantity\": \"1\", \"Description\": \"Service Charge\", \"Unit Price\": \"12.00\", \"Line Total\": \"12.00\"}, {\"Quantity\": \"2\", \"Description\": \"Re-key cylinder\", \"Unit Price\": \"2.00\", \"Line Total\": \"2.00\"}]",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999653,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Subtotal",
+          "value": "123.00",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999845,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Sales_Tax",
+          "value": "0.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999908,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Total_Amount_Due",
+          "value": "123.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999535,
+          "ocr_confidence": 1.0
+        }
+      ]
+    },
+    {
+      "results": [
+        {
+          "key": "Invoice_Number",
+          "value": "4012",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999962,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Invoice_Date",
+          "value": "2026-03-09",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999857,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Name",
+          "value": "Rosalie Cung",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999962,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Address",
+          "value": "349 4th St. Hoboken NJ 7302",
+          "field_type": "TEXT",
+          "model_confidence": 0.7474578,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Phone_Number",
+          "value": "2016744335",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999926,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Customer_Email",
+          "value": "aayevtushenko@gmail.com",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999863,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Service_Notes",
+          "value": "Re-keyed levers on apt.1 & 2",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999635,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Payment_Terms",
+          "value": "Due on Receipt",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999913,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Due_Date",
+          "value": "2026-03-11",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999297,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Line_Items",
+          "value": "[{\"Quantity\": \"1\", \"Description\": \"Service Charge\", \"Unit Price\": \"12.00\", \"Line Total\": \"12.00\"}, {\"Quantity\": \"2\", \"Description\": \"Re-key cylinder\", \"Unit Price\": \"2.00\", \"Line Total\": \"2.00\"}]",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999653,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Subtotal",
+          "value": "123.00",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999845,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Sales_Tax",
+          "value": "0.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.9999908,
+          "ocr_confidence": 1.0
+        },
+        {
+          "key": "Total_Amount_Due",
+          "value": "123.27",
+          "field_type": "TEXT",
+          "model_confidence": 0.99999535,
+          "ocr_confidence": 1.0
+        }
+      ]
+    }
+  ],
+  "entity_resolution_ground_truth": [
+    {
+      "invoice_number": "4001",
+      "entity_id": "entity-1"
+    },
+    {
+      "invoice_number": "4002",
+      "entity_id": "entity-1"
+    },
+    {
+      "invoice_number": "4003",
+      "entity_id": "entity-1"
+    },
+    {
+      "invoice_number": "4004",
+      "entity_id": "entity-1"
+    },
+    {
+      "invoice_number": "4005",
+      "entity_id": "entity-2"
+    },
+    {
+      "invoice_number": "4006",
+      "entity_id": "entity-2"
+    },
+    {
+      "invoice_number": "4007",
+      "entity_id": "entity-2"
+    },
+    {
+      "invoice_number": "4008",
+      "entity_id": "entity-2"
+    },
+    {
+      "invoice_number": "4009",
+      "entity_id": "entity-3"
+    },
+    {
+      "invoice_number": "4010",
+      "entity_id": "entity-3"
+    },
+    {
+      "invoice_number": "4011",
+      "entity_id": "entity-3"
+    },
+    {
+      "invoice_number": "4012",
+      "entity_id": "entity-3"
+    }
+  ]
+}

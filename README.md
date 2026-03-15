@@ -18,7 +18,7 @@ The script applies the following defaults to avoid outbound customer communicati
 
 - **Due date set to today** for balance request (`payment_requests[0].due_date`), approximating due-on-receipt behavior for legacy imports.
 - **Accepted payment mode includes card** (`accepted_payment_methods.card=true`) so payment settings are valid.
-- **No reminders** (`reminders=[]`).
+- **No reminders configured** (the `reminders` field is omitted because current Invoice API versions reject it on create).
 - **Manual sharing only** (`delivery_method=SHARE_MANUALLY`) so Square does not email/text customers automatically.
 - **Immediate external payment record** after publish (`payment_type=EXTERNAL`, `external_details.type=CARD`) to mark invoice paid in Square records.
 

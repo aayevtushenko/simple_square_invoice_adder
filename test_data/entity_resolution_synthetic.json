@@ -1,0 +1,209 @@
+[
+  {
+    "record_id": "cluster-0-canonical",
+    "source_invoice": "2355",
+    "name": "Ken Chung",
+    "email": "kennethwkabcchung@gmail.com",
+    "phone": "6467100278",
+    "address": "249 4th St. Jersey City, NJ 07302",
+    "cluster_id": "cluster-0"
+  },
+  {
+    "record_id": "cluster-0-variant-0",
+    "source_invoice": "2355-v0",
+    "name": "Ken  hung",
+    "email": "kennethwkabcchung@gmail.com",
+    "phone": "64467100278",
+    "address": "249 4th St. Jersey City, NJ 07302",
+    "cluster_id": "cluster-0"
+  },
+  {
+    "record_id": "cluster-0-variant-1",
+    "source_invoice": "2355-v1",
+    "name": "Ken Chnug",
+    "email": "kennethwkabcchung@gmail.com",
+    "phone": "64671000278",
+    "address": "249 4th t. Jersey City, NJ 07302",
+    "cluster_id": "cluster-0"
+  },
+  {
+    "record_id": "cluster-0-variant-2",
+    "source_invoice": "2355-v2",
+    "name": "Ke nChung",
+    "email": "kennethwkabcchung@gmail.com",
+    "phone": "6467100278",
+    "address": "249 4th St. Jersey City, NJ 07302",
+    "cluster_id": "cluster-0"
+  },
+  {
+    "record_id": "cluster-0-variant-3",
+    "source_invoice": "2355-v3",
+    "name": "Ken Cuhng",
+    "email": "kennethwkabcchung@gmail.com",
+    "phone": "6467100278",
+    "address": "249 4th St. Jersey City, NJ 07302",
+    "cluster_id": "cluster-0"
+  },
+  {
+    "record_id": "cluster-0-variant-4",
+    "source_invoice": "2355-v4",
+    "name": "Ken Chuung",
+    "email": "kennethwkabcchung@gm il.com",
+    "phone": "6467100278",
+    "address": "249 4th St. Jersey Ci y, NJ 07302",
+    "cluster_id": "cluster-0"
+  },
+  {
+    "record_id": "cluster-0-variant-5",
+    "source_invoice": "2355-v5",
+    "name": "Ken Chng",
+    "email": "kennethwkabcchung@gmail.com",
+    "phone": "66467100278",
+    "address": "249 4th St. Jersey City, NJ 07302",
+    "cluster_id": "cluster-0"
+  },
+  {
+    "record_id": "cluster-1-canonical",
+    "source_invoice": "2340",
+    "name": "Shmiegel Precious",
+    "email": "beeboop@gmail.com",
+    "phone": "2014544449",
+    "address": "999999 4th St.Bayonne, NJ 07302",
+    "cluster_id": "cluster-1"
+  },
+  {
+    "record_id": "cluster-1-variant-0",
+    "source_invoice": "2340-v0",
+    "name": "SShmiegel Precious",
+    "email": "beeboop@gmail.com",
+    "phone": "2015444449",
+    "address": "999999 4th St.Bayonne, NJ 07302",
+    "cluster_id": "cluster-1"
+  },
+  {
+    "record_id": "cluster-1-variant-1",
+    "source_invoice": "2340-v1",
+    "name": "Shhmiegel Precious",
+    "email": "beeboopp@gmail.com",
+    "phone": "2014544449",
+    "address": "999999 4th St.Bayonne, NJ 07302",
+    "cluster_id": "cluster-1"
+  },
+  {
+    "record_id": "cluster-1-variant-2",
+    "source_invoice": "2340-v2",
+    "name": "ShmiegelP recious",
+    "email": "beeboop@gmail.com",
+    "phone": "2014544449",
+    "address": "999999 4th St.Bayonne, NJ 07302",
+    "cluster_id": "cluster-1"
+  },
+  {
+    "record_id": "cluster-1-variant-3",
+    "source_invoice": "2340-v3",
+    "name": "Shmiiegel Precious",
+    "email": "beeboop@gmail.com",
+    "phone": "2014544449",
+    "address": "99999 4th St.Bayonne, NJ 07302",
+    "cluster_id": "cluster-1"
+  },
+  {
+    "record_id": "cluster-1-variant-4",
+    "source_invoice": "2340-v4",
+    "name": "SShmiegel Precious",
+    "email": "beeboop@gmail.com",
+    "phone": "201544449",
+    "address": "999999 4th St.Bayonne, NJ 07302",
+    "cluster_id": "cluster-1"
+  },
+  {
+    "record_id": "cluster-1-variant-5",
+    "source_invoice": "2340-v5",
+    "name": "Shmiegel Precios",
+    "email": "beeboop@gmai.lcom",
+    "phone": "2014544449",
+    "address": "999999 4th St.Bayonne, NJ 07302",
+    "cluster_id": "cluster-1"
+  },
+  {
+    "record_id": "cluster-2-canonical",
+    "source_invoice": "2356",
+    "name": "Rosalie Chung",
+    "email": "aayevtushenko@gmail.com",
+    "phone": "2016744334",
+    "address": "349 4th St. HOBOKEN, NJ 07302",
+    "cluster_id": "cluster-2"
+  },
+  {
+    "record_id": "cluster-2-variant-0",
+    "source_invoice": "2356-v0",
+    "name": "Ro alie Chung",
+    "email": "aayevvtushenko@gmail.com",
+    "phone": "2016744334",
+    "address": "349 4th St. HOBOKEN, NJ 07302",
+    "cluster_id": "cluster-2"
+  },
+  {
+    "record_id": "cluster-2-variant-1",
+    "source_invoice": "2356-v1",
+    "name": "Rosalie hung",
+    "email": "aayevtushennko@gmail.com",
+    "phone": "2 16744334",
+    "address": "349 4th St. HOBOKEN, NJ 07302",
+    "cluster_id": "cluster-2"
+  },
+  {
+    "record_id": "cluster-2-variant-2",
+    "source_invoice": "2356-v2",
+    "name": "Rosallie Chung",
+    "email": "aayevtushenko@gmail.com",
+    "phone": "201674434",
+    "address": "349 4thS t. HOBOKEN, NJ 07302",
+    "cluster_id": "cluster-2"
+  },
+  {
+    "record_id": "cluster-2-variant-3",
+    "source_invoice": "2356-v3",
+    "name": "Rosalie Chhung",
+    "email": "aaayevtushenko@gmail.com",
+    "phone": "2016744334",
+    "address": "349 4th St. HOBOKEN, NJ 07302",
+    "cluster_id": "cluster-2"
+  },
+  {
+    "record_id": "cluster-2-variant-4",
+    "source_invoice": "2356-v4",
+    "name": "Rosalie Chung",
+    "email": "aayevtushenko@gm il.com",
+    "phone": "2016744334",
+    "address": "349 4th St. HOBOKEN, NJ  7302",
+    "cluster_id": "cluster-2"
+  },
+  {
+    "record_id": "cluster-2-variant-5",
+    "source_invoice": "2356-v5",
+    "name": "Roslaie Chung",
+    "email": "aayevtushenko@gmail.com",
+    "phone": "2016744334",
+    "address": "349 4th St. HOBOKEN, NJ 07302",
+    "cluster_id": "cluster-2"
+  },
+  {
+    "record_id": "lookalike-1",
+    "source_invoice": "demo-1",
+    "name": "Ken Chang",
+    "email": "ken.chang@example.com",
+    "phone": "6467100279",
+    "address": "251 4th st jersey city nj 07302",
+    "cluster_id": "lookalike-1"
+  },
+  {
+    "record_id": "lookalike-2",
+    "source_invoice": "demo-2",
+    "name": "Rosalee Chung",
+    "email": "rosalee+work@example.com",
+    "phone": "2016744335",
+    "address": "349 fourth street hoboken nj 07302",
+    "cluster_id": "lookalike-2"
+  }
+]

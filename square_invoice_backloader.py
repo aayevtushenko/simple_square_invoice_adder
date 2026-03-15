@@ -108,6 +108,14 @@ class SquareClient:
             raise SquareAPIError(f"{method} {path} failed: {response.status_code} {body}")
         return body
 
+    @staticmethod
+    def _strip_none(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {k: SquareClient._strip_none(v) for k, v in value.items() if v is not None}
+        if isinstance(value, list):
+            return [SquareClient._strip_none(item) for item in value]
+        return value
+
     def test_connection(self) -> Dict[str, Any]:
         return self._request("GET", "/v2/locations")
 
@@ -175,7 +183,7 @@ class SquareClient:
         return response["order"]["id"]
 
     def create_invoice(self, invoice: LegacyInvoice, order_id: str, customer_id: str) -> Dict[str, Any]:
-        today = dt.date.today().isoformat()
+        due_date = invoice.due_date or dt.date.today().isoformat()
         payload = {
             "idempotency_key": str(uuid.uuid4()),
             "invoice": {
@@ -185,7 +193,7 @@ class SquareClient:
                 "payment_requests": [
                     {
                         "request_type": "BALANCE",
-                        "due_date": today,
+                        "due_date": due_date,
                         "tipping_enabled": False,
                         "automatic_payment_source": "NONE",
                     }
@@ -202,10 +210,9 @@ class SquareClient:
                     "cash_app_pay": False,
                 },
                 "sale_or_service_date": invoice.invoice_date,
-                "scheduled_at": None,
-                "reminders": [],
             },
         }
+        payload = self._strip_none(payload)
         response = self._request("POST", "/v2/invoices", payload)
         return response["invoice"]
 

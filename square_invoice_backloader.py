@@ -248,24 +248,46 @@ class SquareClient:
         response = self._request("POST", f"/v2/invoices/{invoice_id}/publish", payload)
         return response["invoice"]
 
-    def record_external_payment(self, invoice_id: str, amount: Decimal, invoice_number: str) -> Dict[str, Any]:
+    def record_manual_payment(
+        self,
+        order_id: str,
+        amount: Decimal,
+        invoice_number: str,
+        *,
+        method: str = "CASH",
+    ) -> Dict[str, Any]:
+        cents = money_to_cents(amount)
+        method = method.upper()
         payload = {
             "idempotency_key": str(uuid.uuid4()),
-            "payment": {
-                "payment_type": "EXTERNAL",
-                "external_details": {
-                    "type": "OTHER",
-                    "source": "Legacy invoice migration",
-                },
-                "amount_money": {
-                    "amount": money_to_cents(amount),
-                    "currency": DEFAULT_CURRENCY,
-                },
-                "payment_date": dt.date.today().isoformat(),
-                "note": f"Legacy migration payment for invoice #{invoice_number}",
+            "source_id": method,
+            "location_id": self.location_id,
+            "order_id": order_id,
+            "note": f"Legacy migration payment for invoice #{invoice_number}",
+            "amount_money": {
+                "amount": cents,
+                "currency": DEFAULT_CURRENCY,
             },
         }
-        return self._request("POST", f"/v2/invoices/{invoice_id}/payments", payload)
+
+        if method == "EXTERNAL":
+            payload["external_details"] = {
+                "type": "OTHER",
+                "source": "Legacy invoice migration",
+            }
+        elif method == "CASH":
+            payload["cash_details"] = {
+                "buyer_supplied_money": {
+                    "amount": cents,
+                    "currency": DEFAULT_CURRENCY,
+                },
+                "change_back_money": {
+                    "amount": 0,
+                    "currency": DEFAULT_CURRENCY,
+                },
+            }
+
+        return self._request("POST", "/v2/payments", payload)
 
 
 def load_legacy_invoices(path: str) -> List[LegacyInvoice]:
@@ -308,7 +330,9 @@ def run_import(path: str, dry_run: bool) -> int:
         order_id = client.create_order(invoice, customer_id)
         draft = client.create_invoice(invoice, order_id, customer_id)
         published = client.publish_invoice(draft["id"], draft["version"])
-        client.record_external_payment(published["id"], invoice.total_due, invoice.invoice_number)
+        published_order_id = published.get("order_id") or order_id
+        payment_method = os.getenv("SQUARE_MANUAL_PAYMENT_METHOD", "CASH")
+        client.record_manual_payment(published_order_id, invoice.total_due, invoice.invoice_number, method=payment_method)
         print(f"Invoice {published['id']} published and marked paid.")
 
     return 0

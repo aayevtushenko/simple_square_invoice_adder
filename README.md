@@ -10,7 +10,7 @@ Square Invoices does not allow creating a brand-new invoice directly in a "paid"
 2. Create order with line items.
 3. Create draft invoice tied to the order.
 4. Publish invoice with safe settings.
-5. Record an external payment directly on the invoice (`POST /v2/invoices/{invoice_id}/payments`) so the invoice transitions to `PAID` without cross-application ownership issues.
+5. Record a manual payment on the invoice order using `POST /v2/payments` (defaults to `source_id=CASH`) so the invoice closes in Square.
 
 ## Built-in limitations/workarounds implemented
 
@@ -20,7 +20,7 @@ The script applies the following defaults to avoid outbound customer communicati
 - **Accepted payment mode includes card** (`accepted_payment_methods.card=true`) so payment settings are valid.
 - **No reminders configured** (the `reminders` field is omitted because current Invoice API versions reject it on create).
 - **Manual sharing only** (`delivery_method=SHARE_MANUALLY`) so Square does not email/text customers automatically.
-- **Immediate external payment record** after publish using `POST /v2/invoices/{invoice_id}/payments` (`payment.payment_type=EXTERNAL` with `payment.external_details.type=OTHER`) so the invoice closes in Square records without the Orders ownership restriction.
+- **Immediate manual payment record** after publish using `POST /v2/payments` on the invoice order. Default mode mirrors Dashboard “Mark as paid” with `source_id=CASH` (override via `SQUARE_MANUAL_PAYMENT_METHOD=EXTERNAL`).
 
 
 ## Square API requirements and setup
@@ -31,8 +31,9 @@ To reliably replicate Dashboard behavior (due today + mark as paid), your token/
 - **Invoices API access**: Required for creating, publishing, and recording invoice payments.
 - **Customers API access**: Required for customer lookup/create before invoice creation.
 - **Orders API access**: Required because invoice creation references an order.
-- **Payments capability for invoice payments**: Required to call `POST /v2/invoices/{invoice_id}/payments` with `payment_type=EXTERNAL`.
+- **Payments API access**: Required to call `POST /v2/payments` when recording manual payments for imported invoices.
 - **Location access**: `SQUARE_LOCATION_ID` must be visible to the token (`test-connection` validates this).
+- **Endpoint compatibility**: Some accounts/API versions return `404 NOT_FOUND` for `POST /v2/invoices/{invoice_id}/payments`; this script intentionally uses the generally available Payments API path.
 
 Behavioral constraints the script now enforces:
 

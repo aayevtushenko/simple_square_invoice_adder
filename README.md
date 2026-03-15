@@ -20,7 +20,7 @@ The script applies the following defaults to avoid outbound customer communicati
 - **Accepted payment mode includes card** (`accepted_payment_methods.card=true`) so payment settings are valid.
 - **No reminders configured** (the `reminders` field is omitted because current Invoice API versions reject it on create).
 - **Manual sharing only** (`delivery_method=SHARE_MANUALLY`) so Square does not email/text customers automatically.
-- **Immediate external payment record** after publish using `POST /v2/payments` (`source_id=EXTERNAL`, tied to the invoice order) so the invoice closes in Square records.
+- **Immediate external payment record** after publish using `POST /v2/payments` (`source_id=EXTERNAL` with `external_details.type=OTHER`, tied to the invoice order) so the invoice closes in Square records.
 
 ## Prerequisites
 

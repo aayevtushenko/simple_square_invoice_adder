@@ -7,6 +7,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import time
 import sys
 import uuid
 from dataclasses import dataclass
@@ -225,7 +226,7 @@ class SquareClient:
                 "delivery_method": "SHARE_MANUALLY",
                 "title": f"Legacy Invoice {invoice.invoice_number}",
                 "description": invoice.service_notes or "Imported from historical invoice records.",
-                "invoice_number": f"LEGACY-{invoice.invoice_number}",
+                "invoice_number": f"LEGACY-{invoice.invoice_number}-{int(time.time())}",
                 "accepted_payment_methods": {
                     "card": True,
                     "square_gift_card": False,

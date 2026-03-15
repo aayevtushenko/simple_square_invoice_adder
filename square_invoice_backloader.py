@@ -264,6 +264,10 @@ class SquareClient:
         payload = {
             "idempotency_key": str(uuid.uuid4()),
             "source_id": "EXTERNAL",
+            "external_details": {
+                "type": "OTHER",
+                "source": "Legacy invoice migration",
+            },
             "location_id": self.location_id,
             "order_id": order_id,
             "note": f"Legacy migration payment for invoice #{invoice_number}",

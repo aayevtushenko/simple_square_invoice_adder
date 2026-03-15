@@ -250,7 +250,6 @@ class SquareClient:
 
     def cancel_invoice(self, invoice_id: str, version: int) -> Dict[str, Any]:
         payload = {
-            "idempotency_key": str(uuid.uuid4()),
             "version": version,
         }
         response = self._request("POST", f"/v2/invoices/{invoice_id}/cancel", payload)

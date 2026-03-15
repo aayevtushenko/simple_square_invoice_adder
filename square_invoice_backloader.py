@@ -195,7 +195,9 @@ class SquareClient:
         today = dt.date.today()
         invoice_date = parse_iso_date(invoice.invoice_date, fallback=today)
         due_date_obj = parse_iso_date(invoice.due_date, fallback=today)
-        scheduled_date = min(invoice_date, due_date_obj)
+        preferred_scheduled_date = min(invoice_date, due_date_obj)
+        earliest_publish_date = today + dt.timedelta(days=1)
+        scheduled_date = max(preferred_scheduled_date, earliest_publish_date)
         payload = {
             "idempotency_key": str(uuid.uuid4()),
             "invoice": {

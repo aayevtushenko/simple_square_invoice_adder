@@ -290,6 +290,12 @@ class SquareClient:
         return self._request("POST", "/v2/payments", payload)
 
 
+def is_order_ownership_forbidden(error: SquareAPIError) -> bool:
+    """Return True when Square rejects payment because order belongs to another app."""
+    message = str(error).lower()
+    return "forbidden" in message and "owned by another application" in message
+
+
 def load_legacy_invoices(path: str) -> List[LegacyInvoice]:
     with open(path, "r", encoding="utf-8") as f:
         raw = json.load(f)
@@ -320,22 +326,49 @@ def run_import(path: str, dry_run: bool) -> int:
     invoices = load_legacy_invoices(path)
     print(f"Loaded {len(invoices)} invoices from {path}")
 
+    succeeded = 0
+    failed = 0
+
     for invoice in invoices:
         print(f"\nProcessing invoice #{invoice.invoice_number} for {invoice.customer_name}")
         if dry_run:
             print("[DRY-RUN] would create customer, order, invoice, publish, and mark paid.")
+            succeeded += 1
             continue
 
-        customer_id = client.upsert_customer(invoice)
-        order_id = client.create_order(invoice, customer_id)
-        draft = client.create_invoice(invoice, order_id, customer_id)
-        published = client.publish_invoice(draft["id"], draft["version"])
-        published_order_id = published.get("order_id") or order_id
-        payment_method = os.getenv("SQUARE_MANUAL_PAYMENT_METHOD", "CASH")
-        client.record_manual_payment(published_order_id, invoice.total_due, invoice.invoice_number, method=payment_method)
-        print(f"Invoice {published['id']} published and marked paid.")
+        try:
+            customer_id = client.upsert_customer(invoice)
+            created_order_id = client.create_order(invoice, customer_id)
+            draft = client.create_invoice(invoice, created_order_id, customer_id)
+            published = client.publish_invoice(draft["id"], draft["version"])
 
-    return 0
+            payment_method = os.getenv("SQUARE_MANUAL_PAYMENT_METHOD", "CASH")
+            preferred_order_id = published.get("order_id") or created_order_id
+            try:
+                client.record_manual_payment(preferred_order_id, invoice.total_due, invoice.invoice_number, method=payment_method)
+            except SquareAPIError as payment_error:
+                if preferred_order_id != created_order_id and is_order_ownership_forbidden(payment_error):
+                    print(
+                        "Payment rejected for published order ownership. "
+                        "Retrying with the freshly-created order id."
+                    )
+                    client.record_manual_payment(
+                        created_order_id,
+                        invoice.total_due,
+                        invoice.invoice_number,
+                        method=payment_method,
+                    )
+                else:
+                    raise
+
+            print(f"Invoice {published['id']} published and marked paid.")
+            succeeded += 1
+        except SquareAPIError as exc:
+            failed += 1
+            print(f"ERROR: {exc}")
+
+    print(f"\nImport complete. Success: {succeeded}, Failed: {failed}")
+    return 1 if failed else 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -356,11 +389,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Iterable[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    try:
-        return args.func(args)
-    except SquareAPIError as exc:
-        print(f"ERROR: {exc}")
-        return 1
+    return args.func(args)
 
 
 if __name__ == "__main__":

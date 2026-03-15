@@ -260,22 +260,19 @@ class SquareClient:
         response = self._request("POST", f"/v2/invoices/{invoice_id}/publish", payload)
         return response["invoice"]
 
-    def record_external_payment(self, invoice_id: str, amount: Decimal) -> Dict[str, Any]:
+    def record_external_payment(self, order_id: str, amount: Decimal, invoice_number: str) -> Dict[str, Any]:
         payload = {
             "idempotency_key": str(uuid.uuid4()),
-            "payment": {
-                "payment_type": "EXTERNAL",
-                "external_details": {
-                    "type": "CASH",
-                    "source": "Legacy migration",
-                },
-                "amount_money": {
-                    "amount": money_to_cents(amount),
-                    "currency": DEFAULT_CURRENCY,
-                },
+            "source_id": "EXTERNAL",
+            "location_id": self.location_id,
+            "order_id": order_id,
+            "note": f"Legacy migration payment for invoice #{invoice_number}",
+            "amount_money": {
+                "amount": money_to_cents(amount),
+                "currency": DEFAULT_CURRENCY,
             },
         }
-        return self._request("POST", f"/v2/invoices/{invoice_id}/payments", payload)
+        return self._request("POST", "/v2/payments", payload)
 
 
 def load_legacy_invoices(path: str) -> List[LegacyInvoice]:
@@ -318,7 +315,7 @@ def run_import(path: str, dry_run: bool) -> int:
         order_id = client.create_order(invoice, customer_id)
         draft = client.create_invoice(invoice, order_id, customer_id)
         published = client.publish_invoice(draft["id"], draft["version"])
-        client.record_external_payment(published["id"], invoice.total_due)
+        client.record_external_payment(order_id, invoice.total_due, invoice.invoice_number)
         print(f"Invoice {published['id']} published and marked paid.")
 
     return 0

@@ -10,7 +10,7 @@ Square Invoices does not allow creating a brand-new invoice directly in a "paid"
 2. Create order with line items.
 3. Create draft invoice tied to the order.
 4. Publish invoice with safe settings.
-5. Record an external payment so the invoice is effectively closed.
+5. Record an external payment on the related order (Payments API) so the invoice is effectively closed.
 
 ## Built-in limitations/workarounds implemented
 
@@ -20,7 +20,7 @@ The script applies the following defaults to avoid outbound customer communicati
 - **Accepted payment mode includes card** (`accepted_payment_methods.card=true`) so payment settings are valid.
 - **No reminders configured** (the `reminders` field is omitted because current Invoice API versions reject it on create).
 - **Manual sharing only** (`delivery_method=SHARE_MANUALLY`) so Square does not email/text customers automatically.
-- **Immediate external payment record** after publish (`payment_type=EXTERNAL`, `external_details.type=CARD`) to mark invoice paid in Square records.
+- **Immediate external payment record** after publish using `POST /v2/payments` (`source_id=EXTERNAL`, tied to the invoice order) so the invoice closes in Square records.
 
 ## Prerequisites
 

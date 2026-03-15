@@ -60,23 +60,17 @@ def parse_iso_date(value: Optional[str], *, fallback: dt.date) -> dt.date:
         return fallback
 
 
-def compute_schedule_and_due_dates(
-    invoice_date: dt.date,
-    due_date: dt.date,
-    *,
-    today: Optional[dt.date] = None,
-) -> tuple[dt.date, dt.date]:
-    """Return a valid (scheduled_date, due_date) pair for Square invoices.
+def normalize_due_date(due_date: dt.date, *, today: Optional[dt.date] = None) -> dt.date:
+    """Return an API-safe due date for manual-share invoices.
 
-    Square requires due_date to be on or after scheduled_date.
+    When `delivery_method=SHARE_MANUALLY`, Square does not use a send date. Setting a
+    future `scheduled_at` leaves the invoice in a "scheduled" state after publish.
+    To mimic Dashboard behavior ("Due today"), clamp due date to today-or-later and
+    omit `scheduled_at` completely.
     """
     if today is None:
         today = dt.date.today()
-    preferred_scheduled_date = min(invoice_date, due_date)
-    earliest_publish_date = today + dt.timedelta(days=1)
-    scheduled_date = max(preferred_scheduled_date, earliest_publish_date)
-    adjusted_due_date = max(due_date, scheduled_date)
-    return scheduled_date, adjusted_due_date
+    return max(due_date, today)
 
 
 def parse_record(record: Dict[str, Any]) -> LegacyInvoice:
@@ -212,20 +206,14 @@ class SquareClient:
 
     def create_invoice(self, invoice: LegacyInvoice, order_id: str, customer_id: str) -> Dict[str, Any]:
         today = dt.date.today()
-        invoice_date = parse_iso_date(invoice.invoice_date, fallback=today)
         due_date_obj = parse_iso_date(invoice.due_date, fallback=today)
-        scheduled_date, adjusted_due_date = compute_schedule_and_due_dates(
-            invoice_date,
-            due_date_obj,
-            today=today,
-        )
+        adjusted_due_date = normalize_due_date(due_date_obj, today=today)
         payload = {
             "idempotency_key": str(uuid.uuid4()),
             "invoice": {
                 "location_id": self.location_id,
                 "order_id": order_id,
                 "primary_recipient": {"customer_id": customer_id},
-                "scheduled_at": f"{scheduled_date.isoformat()}T00:00:00Z",
                 "payment_requests": [
                     {
                         "request_type": "BALANCE",
@@ -260,23 +248,24 @@ class SquareClient:
         response = self._request("POST", f"/v2/invoices/{invoice_id}/publish", payload)
         return response["invoice"]
 
-    def record_external_payment(self, order_id: str, amount: Decimal, invoice_number: str) -> Dict[str, Any]:
+    def record_external_payment(self, invoice_id: str, amount: Decimal, invoice_number: str) -> Dict[str, Any]:
         payload = {
             "idempotency_key": str(uuid.uuid4()),
-            "source_id": "EXTERNAL",
-            "external_details": {
-                "type": "OTHER",
-                "source": "Legacy invoice migration",
-            },
-            "location_id": self.location_id,
-            "order_id": order_id,
-            "note": f"Legacy migration payment for invoice #{invoice_number}",
-            "amount_money": {
-                "amount": money_to_cents(amount),
-                "currency": DEFAULT_CURRENCY,
+            "payment": {
+                "payment_type": "EXTERNAL",
+                "external_details": {
+                    "type": "OTHER",
+                    "source": "Legacy invoice migration",
+                },
+                "amount_money": {
+                    "amount": money_to_cents(amount),
+                    "currency": DEFAULT_CURRENCY,
+                },
+                "payment_date": dt.date.today().isoformat(),
+                "note": f"Legacy migration payment for invoice #{invoice_number}",
             },
         }
-        return self._request("POST", "/v2/payments", payload)
+        return self._request("POST", f"/v2/invoices/{invoice_id}/payments", payload)
 
 
 def load_legacy_invoices(path: str) -> List[LegacyInvoice]:
@@ -319,7 +308,7 @@ def run_import(path: str, dry_run: bool) -> int:
         order_id = client.create_order(invoice, customer_id)
         draft = client.create_invoice(invoice, order_id, customer_id)
         published = client.publish_invoice(draft["id"], draft["version"])
-        client.record_external_payment(order_id, invoice.total_due, invoice.invoice_number)
+        client.record_external_payment(published["id"], invoice.total_due, invoice.invoice_number)
         print(f"Invoice {published['id']} published and marked paid.")
 
     return 0

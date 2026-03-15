@@ -10,7 +10,7 @@ Square Invoices does not allow creating a brand-new invoice directly in a "paid"
 2. Create order with line items.
 3. Create draft invoice tied to the order.
 4. Publish invoice with safe settings.
-5. Record an external payment on the related order (Payments API) so the invoice is effectively closed.
+5. Record an external payment directly on the invoice (`POST /v2/invoices/{invoice_id}/payments`) so the invoice transitions to `PAID` without cross-application ownership issues.
 
 ## Built-in limitations/workarounds implemented
 
@@ -20,7 +20,24 @@ The script applies the following defaults to avoid outbound customer communicati
 - **Accepted payment mode includes card** (`accepted_payment_methods.card=true`) so payment settings are valid.
 - **No reminders configured** (the `reminders` field is omitted because current Invoice API versions reject it on create).
 - **Manual sharing only** (`delivery_method=SHARE_MANUALLY`) so Square does not email/text customers automatically.
-- **Immediate external payment record** after publish using `POST /v2/payments` (`source_id=EXTERNAL` with `external_details.type=OTHER`, tied to the invoice order) so the invoice closes in Square records.
+- **Immediate external payment record** after publish using `POST /v2/invoices/{invoice_id}/payments` (`payment.payment_type=EXTERNAL` with `payment.external_details.type=OTHER`) so the invoice closes in Square records without the Orders ownership restriction.
+
+
+## Square API requirements and setup
+
+To reliably replicate Dashboard behavior (due today + mark as paid), your token/application must satisfy these requirements:
+
+- **Same application ownership across objects**: Orders and invoice actions must be performed by the same Square application/access token. The previous `POST /v2/payments` call failed because it attempted to pay an order owned by another app (`AUTHENTICATION_ERROR` / `FORBIDDEN`).
+- **Invoices API access**: Required for creating, publishing, and recording invoice payments.
+- **Customers API access**: Required for customer lookup/create before invoice creation.
+- **Orders API access**: Required because invoice creation references an order.
+- **Payments capability for invoice payments**: Required to call `POST /v2/invoices/{invoice_id}/payments` with `payment_type=EXTERNAL`.
+- **Location access**: `SQUARE_LOCATION_ID` must be visible to the token (`test-connection` validates this).
+
+Behavioral constraints the script now enforces:
+
+- For manual-share invoices (`delivery_method=SHARE_MANUALLY`), the script omits `scheduled_at` so publish does not leave invoices in a future `SCHEDULED` state.
+- Due date is normalized to today-or-later to remain API-valid while matching "Due today" behavior when source dates are historical.
 
 ## Prerequisites
 

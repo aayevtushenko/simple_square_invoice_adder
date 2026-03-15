@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backload legacy invoices into Square and optionally mark them paid."""
+"""Backload legacy invoices into Square and close them out by cancellation."""
 
 from __future__ import annotations
 
@@ -248,52 +248,13 @@ class SquareClient:
         response = self._request("POST", f"/v2/invoices/{invoice_id}/publish", payload)
         return response["invoice"]
 
-    def record_manual_payment(
-        self,
-        order_id: str,
-        amount: Decimal,
-        invoice_number: str,
-        *,
-        method: str = "CASH",
-    ) -> Dict[str, Any]:
-        cents = money_to_cents(amount)
-        method = method.upper()
+    def cancel_invoice(self, invoice_id: str, version: int) -> Dict[str, Any]:
         payload = {
             "idempotency_key": str(uuid.uuid4()),
-            "source_id": method,
-            "location_id": self.location_id,
-            "order_id": order_id,
-            "note": f"Legacy migration payment for invoice #{invoice_number}",
-            "amount_money": {
-                "amount": cents,
-                "currency": DEFAULT_CURRENCY,
-            },
+            "version": version,
         }
-
-        if method == "EXTERNAL":
-            payload["external_details"] = {
-                "type": "OTHER",
-                "source": "Legacy invoice migration",
-            }
-        elif method == "CASH":
-            payload["cash_details"] = {
-                "buyer_supplied_money": {
-                    "amount": cents,
-                    "currency": DEFAULT_CURRENCY,
-                },
-                "change_back_money": {
-                    "amount": 0,
-                    "currency": DEFAULT_CURRENCY,
-                },
-            }
-
-        return self._request("POST", "/v2/payments", payload)
-
-
-def is_order_ownership_forbidden(error: SquareAPIError) -> bool:
-    """Return True when Square rejects payment because order belongs to another app."""
-    message = str(error).lower()
-    return "forbidden" in message and "owned by another application" in message
+        response = self._request("POST", f"/v2/invoices/{invoice_id}/cancel", payload)
+        return response["invoice"]
 
 
 def load_legacy_invoices(path: str) -> List[LegacyInvoice]:
@@ -332,7 +293,7 @@ def run_import(path: str, dry_run: bool) -> int:
     for invoice in invoices:
         print(f"\nProcessing invoice #{invoice.invoice_number} for {invoice.customer_name}")
         if dry_run:
-            print("[DRY-RUN] would create customer, order, invoice, publish, and mark paid.")
+            print("[DRY-RUN] would create customer, order, invoice, publish, and cancel (close-out strategy).")
             succeeded += 1
             continue
 
@@ -341,34 +302,9 @@ def run_import(path: str, dry_run: bool) -> int:
             created_order_id = client.create_order(invoice, customer_id)
             draft = client.create_invoice(invoice, created_order_id, customer_id)
             published = client.publish_invoice(draft["id"], draft["version"])
+            canceled = client.cancel_invoice(published["id"], published["version"])
 
-            payment_method = os.getenv("SQUARE_MANUAL_PAYMENT_METHOD", "CASH")
-            order_ids_to_try = [
-                published.get("order_id"),
-                draft.get("order_id"),
-                created_order_id,
-            ]
-            tried_order_ids = []
-            last_payment_error: Optional[SquareAPIError] = None
-            for order_id in order_ids_to_try:
-                if not order_id or order_id in tried_order_ids:
-                    continue
-                tried_order_ids.append(order_id)
-                try:
-                    client.record_manual_payment(order_id, invoice.total_due, invoice.invoice_number, method=payment_method)
-                    last_payment_error = None
-                    break
-                except SquareAPIError as payment_error:
-                    last_payment_error = payment_error
-                    if is_order_ownership_forbidden(payment_error):
-                        print(f"Payment rejected for order {order_id} ownership. Trying next candidate order id.")
-                        continue
-                    raise
-
-            if last_payment_error is not None:
-                raise last_payment_error
-
-            print(f"Invoice {published['id']} published and marked paid.")
+            print(f"Invoice {published['id']} published then canceled (status={canceled.get('status')}).")
             succeeded += 1
         except SquareAPIError as exc:
             failed += 1

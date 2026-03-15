@@ -51,6 +51,15 @@ def parse_decimal(value: str, *, default: str = "0") -> Decimal:
         return Decimal(default)
 
 
+def parse_iso_date(value: Optional[str], *, fallback: dt.date) -> dt.date:
+    if not value:
+        return fallback
+    try:
+        return dt.date.fromisoformat(value)
+    except ValueError:
+        return fallback
+
+
 def parse_record(record: Dict[str, Any]) -> LegacyInvoice:
     flattened = {item["key"]: item.get("value") for item in record.get("results", [])}
 
@@ -183,17 +192,21 @@ class SquareClient:
         return response["order"]["id"]
 
     def create_invoice(self, invoice: LegacyInvoice, order_id: str, customer_id: str) -> Dict[str, Any]:
-        due_date = invoice.due_date or dt.date.today().isoformat()
+        today = dt.date.today()
+        invoice_date = parse_iso_date(invoice.invoice_date, fallback=today)
+        due_date_obj = parse_iso_date(invoice.due_date, fallback=today)
+        scheduled_date = min(invoice_date, due_date_obj)
         payload = {
             "idempotency_key": str(uuid.uuid4()),
             "invoice": {
                 "location_id": self.location_id,
                 "order_id": order_id,
                 "primary_recipient": {"customer_id": customer_id},
+                "scheduled_at": f"{scheduled_date.isoformat()}T00:00:00Z",
                 "payment_requests": [
                     {
                         "request_type": "BALANCE",
-                        "due_date": due_date,
+                        "due_date": due_date_obj.isoformat(),
                         "tipping_enabled": False,
                         "automatic_payment_source": "NONE",
                     }

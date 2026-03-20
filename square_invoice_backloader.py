@@ -17,7 +17,9 @@ from typing import Any, Dict, Iterable, List, Optional
 import requests
 from requests import RequestException
 
-SQUARE_API_BASE = "https://connect.squareup.com"
+# SQUARE_API_BASE = "https://connect.squareup.com"
+SQUARE_API_BASE = "https://connect.squareupsandbox.com"
+
 DEFAULT_CURRENCY = "USD"
 
 

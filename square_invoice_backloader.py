@@ -4,13 +4,14 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import datetime as dt
 import json
 import os
 import time
 import sys
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -46,6 +47,75 @@ class LegacyInvoice:
     subtotal: Decimal
     sales_tax: Decimal
     total_due: Decimal
+
+
+@dataclass
+class DryRunRecordReport:
+    """Validation results for one legacy record during dry-run execution."""
+
+    file_label: str
+    invoice_number: str
+    is_failure: bool = False
+    failure_reasons: List[str] = field(default_factory=list)
+    fallback_events: List[str] = field(default_factory=list)
+    missing_events: List[str] = field(default_factory=list)
+    report_only_events: List[str] = field(default_factory=list)
+    invalid_events: List[str] = field(default_factory=list)
+    negative_events: List[str] = field(default_factory=list)
+
+    def add_failure_reason(self, reason: str) -> None:
+        """Record one failure reason and mark the report as failed.
+
+        Args:
+            reason: Human-readable explanation of why the record is not processable.
+        """
+
+        self.is_failure = True
+        if reason not in self.failure_reasons:
+            self.failure_reasons.append(reason)
+
+    def add_fallback_event(self, event: str) -> None:
+        """Record that a present value would trigger parser fallback.
+
+        Args:
+            event: Field identifier used in the summary output.
+        """
+
+        if event not in self.fallback_events:
+            self.fallback_events.append(event)
+
+    def add_missing_event(self, event: str, *, report_only: bool = False) -> None:
+        """Record that a required or notable value is missing.
+
+        Args:
+            event: Field identifier used in the summary output.
+            report_only: Whether the missing value should be tracked without failing the record.
+        """
+
+        if event not in self.missing_events:
+            self.missing_events.append(event)
+        if report_only and event not in self.report_only_events:
+            self.report_only_events.append(event)
+
+    def add_invalid_event(self, event: str) -> None:
+        """Record that a field contains an invalid non-missing value.
+
+        Args:
+            event: Field identifier used in the summary output.
+        """
+
+        if event not in self.invalid_events:
+            self.invalid_events.append(event)
+
+    def add_negative_event(self, event: str) -> None:
+        """Record that a numeric field contains a negative value.
+
+        Args:
+            event: Field identifier used in the summary output.
+        """
+
+        if event not in self.negative_events:
+            self.negative_events.append(event)
 
 
 def money_to_cents(value: Decimal) -> int:
@@ -105,6 +175,294 @@ def normalize_due_date(due_date: dt.date, *, today: Optional[dt.date] = None) ->
     return max(due_date, today)
 
 
+def flatten_record(record: Dict[str, Any]) -> Dict[str, Any]:
+    """Flatten the legacy `results` key/value pairs into a simple dictionary.
+
+    Args:
+        record: One raw record object from the legacy export JSON.
+    """
+
+    return {item["key"]: item.get("value") for item in record.get("results", [])}
+
+
+def is_missing_value(value: Any) -> bool:
+    """Return `True` when a raw field value should be treated as missing.
+
+    Args:
+        value: Raw field value from the legacy export.
+    """
+
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
+def try_parse_decimal(value: Any) -> Optional[Decimal]:
+    """Attempt to parse a decimal value without applying fallback behavior.
+
+    Args:
+        value: Raw numeric value from the legacy export.
+    """
+
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+def try_parse_iso_date(value: Any) -> Optional[dt.date]:
+    """Attempt to parse an ISO date string without applying fallback behavior.
+
+    Args:
+        value: Raw date value from the legacy export.
+    """
+
+    if is_missing_value(value):
+        return None
+    try:
+        return dt.date.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
+def try_parse_line_items(value: Any) -> tuple[Optional[List[Any]], bool]:
+    """Parse the raw line-item JSON string into a list when possible.
+
+    Args:
+        value: Raw `Line_Items` value from the legacy export.
+    """
+
+    if is_missing_value(value):
+        return None, False
+    try:
+        parsed = json.loads(str(value))
+    except (TypeError, json.JSONDecodeError):
+        return None, True
+    if not isinstance(parsed, list):
+        return None, True
+    return parsed, False
+
+
+def get_record_file_label(record: Dict[str, Any], index: int) -> str:
+    """Build a human-readable label for one source file/record.
+
+    Args:
+        record: One raw record object from the legacy export JSON.
+        index: Zero-based position of the record in the source file.
+    """
+
+    document_path = record.get("document_path")
+    if isinstance(document_path, str) and document_path.strip():
+        return os.path.basename(document_path)
+    file_name = record.get("file_name")
+    if isinstance(file_name, str) and file_name.strip():
+        return file_name
+    return f"record-{index + 1}"
+
+
+def validate_optional_date_field(value: Any, field_name: str, report: DryRunRecordReport) -> None:
+    """Track parse fallback for an optional date field when a present value is invalid.
+
+    Args:
+        value: Raw date value to validate.
+        field_name: Summary/report field name.
+        report: Dry-run report being populated.
+    """
+
+    if is_missing_value(value):
+        return
+    if try_parse_iso_date(value) is None:
+        report.add_fallback_event(field_name)
+
+
+def validate_nonnegative_decimal_field(
+    value: Any,
+    field_name: str,
+    report: DryRunRecordReport,
+    *,
+    missing_behavior: str,
+    context_label: str,
+) -> None:
+    """Validate one numeric field under the dry-run rules.
+
+    Args:
+        value: Raw numeric value to validate.
+        field_name: Summary/report field name.
+        report: Dry-run report being populated.
+        missing_behavior: Either `fail` or `report_only` for missing values.
+        context_label: Human-readable field label for per-record failure messages.
+    """
+
+    if is_missing_value(value):
+        report.add_missing_event(field_name, report_only=missing_behavior == "report_only")
+        if missing_behavior == "fail":
+            report.add_failure_reason(f"missing {context_label}")
+        return
+
+    parsed_value = try_parse_decimal(value)
+    if parsed_value is None:
+        report.add_fallback_event(field_name)
+        report.add_invalid_event(field_name)
+        report.add_failure_reason(f"invalid {context_label}")
+        return
+
+    if parsed_value < 0:
+        report.add_negative_event(field_name)
+        report.add_failure_reason(f"negative {context_label}")
+
+
+def validate_line_items(value: Any, report: DryRunRecordReport) -> None:
+    """Validate line-item structure and required numeric fields for dry-run.
+
+    Args:
+        value: Raw `Line_Items` value from the legacy export.
+        report: Dry-run report being populated.
+    """
+
+    if is_missing_value(value):
+        report.add_missing_event("Line_Items")
+        report.add_failure_reason("missing Line_Items")
+        return
+
+    parsed_items, is_invalid = try_parse_line_items(value)
+    if is_invalid or parsed_items is None:
+        report.add_invalid_event("Line_Items")
+        report.add_failure_reason("invalid Line_Items")
+        return
+
+    if not parsed_items:
+        report.add_invalid_event("Line_Items")
+        report.add_failure_reason("Line_Items is empty")
+        return
+
+    for index, item in enumerate(parsed_items, start=1):
+        if not isinstance(item, dict):
+            report.add_invalid_event("Line_Items")
+            report.add_failure_reason(f"line item {index} is not an object")
+            continue
+
+        validate_nonnegative_decimal_field(
+            item.get("Quantity"),
+            "Line_Items.Quantity",
+            report,
+            missing_behavior="fail",
+            context_label=f"line item {index} Quantity",
+        )
+        validate_nonnegative_decimal_field(
+            item.get("Unit Price"),
+            "Line_Items.Unit Price",
+            report,
+            missing_behavior="fail",
+            context_label=f"line item {index} Unit Price",
+        )
+        validate_nonnegative_decimal_field(
+            item.get("Line Total"),
+            "Line_Items.Line Total",
+            report,
+            missing_behavior="fail",
+            context_label=f"line item {index} Line Total",
+        )
+
+
+def validate_record_for_dry_run(record: Dict[str, Any], index: int) -> DryRunRecordReport:
+    """Validate one raw record and return the dry-run reporting data.
+
+    Args:
+        record: One raw record object from the legacy export JSON.
+        index: Zero-based position of the record in the source file.
+    """
+
+    flattened = flatten_record(record)
+    invoice_number = str(flattened.get("Invoice_Number") or "UNKNOWN")
+    report = DryRunRecordReport(
+        file_label=get_record_file_label(record, index),
+        invoice_number=invoice_number,
+    )
+
+    validate_optional_date_field(flattened.get("Invoice_Date"), "Invoice_Date", report)
+    validate_optional_date_field(flattened.get("Due_Date"), "Due_Date", report)
+    validate_nonnegative_decimal_field(
+        flattened.get("Subtotal"),
+        "Subtotal",
+        report,
+        missing_behavior="fail",
+        context_label="Subtotal",
+    )
+    validate_nonnegative_decimal_field(
+        flattened.get("Total_Amount_Due"),
+        "Total_Amount_Due",
+        report,
+        missing_behavior="report_only",
+        context_label="Total_Amount_Due",
+    )
+    validate_line_items(flattened.get("Line_Items"), report)
+    return report
+
+
+def format_record_status(report: DryRunRecordReport) -> str:
+    """Format a compact dry-run status line for one record.
+
+    Args:
+        report: Dry-run report for one record.
+    """
+
+    status = "FAIL" if report.is_failure else "OK"
+    details: List[str] = []
+
+    if report.is_failure and report.failure_reasons:
+        preview = report.failure_reasons[:3]
+        reason_text = "; ".join(preview)
+        if len(report.failure_reasons) > 3:
+            reason_text += f"; +{len(report.failure_reasons) - 3} more"
+        details.append(reason_text)
+    if report.fallback_events:
+        details.append(f"fallbacks: {', '.join(report.fallback_events)}")
+    if report.report_only_events:
+        details.append(f"report-only: {', '.join(report.report_only_events)}")
+
+    suffix = f" :: {' | '.join(details)}" if details else ""
+    return f"[DRY-RUN] {status} {report.file_label} (invoice #{report.invoice_number}){suffix}"
+
+
+def print_dry_run_summary(reports: List[DryRunRecordReport]) -> None:
+    """Print overall and per-field dry-run validation totals.
+
+    Args:
+        reports: All dry-run reports generated for the import input.
+    """
+
+    fallback_counts = Counter(event for report in reports for event in report.fallback_events)
+    missing_counts = Counter(event for report in reports for event in report.missing_events)
+    invalid_counts = Counter(event for report in reports for event in report.invalid_events)
+    negative_counts = Counter(event for report in reports for event in report.negative_events)
+    report_only_counts = Counter(event for report in reports for event in report.report_only_events)
+
+    print("\nDry-run summary:")
+    print(f"- Files processed: {len(reports)}")
+    print(f"- Success: {sum(1 for report in reports if not report.is_failure)}")
+    print(f"- Failed: {sum(1 for report in reports if report.is_failure)}")
+    print(f"- Files with parse fallbacks: {sum(1 for report in reports if report.fallback_events)}")
+
+    if fallback_counts:
+        print("- Fallback counts:")
+        for field_name in sorted(fallback_counts):
+            print(f"  - {field_name}: {fallback_counts[field_name]}")
+
+    if missing_counts:
+        print("- Missing counts:")
+        for field_name in sorted(missing_counts):
+            suffix = " (report-only)" if field_name in report_only_counts else ""
+            print(f"  - {field_name}: {missing_counts[field_name]}{suffix}")
+
+    if invalid_counts:
+        print("- Invalid counts:")
+        for field_name in sorted(invalid_counts):
+            print(f"  - {field_name}: {invalid_counts[field_name]}")
+
+    if negative_counts:
+        print("- Negative counts:")
+        for field_name in sorted(negative_counts):
+            print(f"  - {field_name}: {negative_counts[field_name]}")
+
+
 def parse_record(record: Dict[str, Any]) -> LegacyInvoice:
     """Flatten one legacy export record into a strongly typed `LegacyInvoice`.
 
@@ -112,16 +470,9 @@ def parse_record(record: Dict[str, Any]) -> LegacyInvoice:
         record: One raw record object from the legacy export JSON.
     """
 
-    # The source JSON stores each field as {"key": "...", "value": "..."} pairs.
-    flattened = {item["key"]: item.get("value") for item in record.get("results", [])}
-
-    line_items_raw = flattened.get("Line_Items") or "[]"
-    try:
-        # Line items are themselves stored as a JSON string inside the record.
-        line_items = json.loads(line_items_raw)
-        if not isinstance(line_items, list):
-            line_items = []
-    except json.JSONDecodeError:
+    flattened = flatten_record(record)
+    line_items, _ = try_parse_line_items(flattened.get("Line_Items"))
+    if line_items is None:
         line_items = []
 
     return LegacyInvoice(
@@ -267,7 +618,7 @@ class SquareClient:
                     "name": "Imported legacy invoice total",
                     "quantity": "1",
                     "base_price_money": {
-                        "amount": money_to_cents(invoice.total_due),
+                        "amount": money_to_cents(invoice.total_due), #TODO: set to subtotal to avoid double taxation. if not subtotal use total_due
                         "currency": DEFAULT_CURRENCY,
                     },
                 }
@@ -366,10 +717,20 @@ def load_legacy_invoices(path: str) -> List[LegacyInvoice]:
         path: Filesystem path to the JSON export file.
     """
 
+    records = load_legacy_records(path)
+    return [parse_record(record) for record in records]
+
+
+def load_legacy_records(path: str) -> List[Dict[str, Any]]:
+    """Load the raw legacy export records from disk.
+
+    Args:
+        path: Filesystem path to the JSON export file.
+    """
+
     with open(path, "r", encoding="utf-8") as f:
         raw = json.load(f)
-    records = raw.get("records") or []
-    return [parse_record(record) for record in records]
+    return raw.get("records") or []
 
 
 def get_client_from_env() -> SquareClient:
@@ -402,9 +763,18 @@ def run_import(path: str, dry_run: bool) -> int:
         dry_run: When `True`, print intended actions without calling Square APIs.
     """
 
+    records = load_legacy_records(path)
+    print(f"Loaded {len(records)} invoices from {path}")
+
+    if dry_run:
+        reports = [validate_record_for_dry_run(record, index) for index, record in enumerate(records)]
+        for report in reports:
+            print(format_record_status(report))
+        print_dry_run_summary(reports)
+        return 1 if any(report.is_failure for report in reports) else 0
+
     client = get_client_from_env()
-    invoices = load_legacy_invoices(path)
-    print(f"Loaded {len(invoices)} invoices from {path}")
+    invoices = [parse_record(record) for record in records]
 
     succeeded = 0
     failed = 0

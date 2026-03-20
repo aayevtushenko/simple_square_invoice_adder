@@ -63,7 +63,8 @@ python square_invoice_backloader.py test-connection
 
 ### 2) Dry-run import
 
-Validates input parsing and shows what would happen without mutating Square:
+Validates each input record, reports missing vs invalid values, summarizes parse fallbacks,
+and shows what would happen without mutating Square:
 
 ```bash
 python square_invoice_backloader.py import --input results.json --dry-run

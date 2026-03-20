@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-"""Backload legacy invoices into Square and close them out by cancellation."""
-
-# TODO: add default phone number for when the number 
+"""Backload legacy invoices into Square with batch-scoped human review."""
 
 from __future__ import annotations
 
 import argparse
-from collections import Counter
+import csv
 import datetime as dt
 import json
 import os
-import time
 import sys
+import time
 import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
@@ -25,6 +23,10 @@ from requests import RequestException
 SQUARE_API_BASE = "https://connect.squareupsandbox.com"
 
 DEFAULT_CURRENCY = "USD"
+APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+BATCH_REGISTRY_PATH = os.path.join(APP_ROOT, "batch_registry.json")
+REVIEW_CSV_NAME = "review.csv"
+FAILURES_CSV_NAME = "failures.csv"
 
 
 class SquareAPIError(RuntimeError):
@@ -34,9 +36,20 @@ class SquareAPIError(RuntimeError):
 
 
 @dataclass
-class LegacyInvoice:
-    """Normalized invoice data extracted from the legacy JSON export."""
+class NormalizedLineItem:
+    """Order-ready line item after validation and any human review resolution."""
 
+    name: str
+    quantity: Decimal
+    unit_price: Decimal
+    note: Optional[str] = None
+
+
+@dataclass
+class LegacyInvoice:
+    """Normalized invoice data ready to upload to Square."""
+
+    invoice_id: str
     invoice_number: str
     invoice_date: str
     due_date: str
@@ -45,79 +58,112 @@ class LegacyInvoice:
     customer_phone: Optional[str]
     customer_address: Optional[str]
     service_notes: Optional[str]
-    line_items: List[Dict[str, Any]]
-    subtotal: Decimal
+    line_items: List[NormalizedLineItem]
+    subtotal: Optional[Decimal]
     sales_tax: Decimal
-    total_due: Decimal
 
 
 @dataclass
-class DryRunRecordReport:
-    """Validation results for one legacy record during dry-run execution."""
+class ReviewRow:
+    """One human-review action item written to `review.csv`."""
 
+    invoice_id: str
+    field_name: str
+    input_value: str
+    fallback: str
+    use_fallback: str = ""
+    manual_adjustment: str = ""
+
+    def to_csv_row(self) -> Dict[str, str]:
+        """Convert the row to the CSV column layout used on disk."""
+
+        return {
+            "invoice_id": self.invoice_id,
+            "field_name": self.field_name,
+            "input": self.input_value,
+            "fallback": self.fallback,
+            "use_fallback": self.use_fallback,
+            "manual_adjustment": self.manual_adjustment,
+        }
+
+
+@dataclass
+class FailureRow:
+    """One permanent-failure record written to `failures.csv`."""
+
+    invoice_id: str
     file_label: str
     invoice_number: str
-    is_failure: bool = False
-    failure_reasons: List[str] = field(default_factory=list)
-    fallback_events: List[str] = field(default_factory=list)
-    missing_events: List[str] = field(default_factory=list)
-    report_only_events: List[str] = field(default_factory=list)
-    invalid_events: List[str] = field(default_factory=list)
-    negative_events: List[str] = field(default_factory=list)
+    failure_reason: str
+    customer_name: str
+    line_items_input: str
 
-    def add_failure_reason(self, reason: str) -> None:
-        """Record one failure reason and mark the report as failed.
+    def to_csv_row(self) -> Dict[str, str]:
+        """Convert the row to the CSV column layout used on disk."""
 
-        Args:
-            reason: Human-readable explanation of why the record is not processable.
-        """
+        return {
+            "invoice_id": self.invoice_id,
+            "file_label": self.file_label,
+            "invoice_number": self.invoice_number,
+            "failure_reason": self.failure_reason,
+            "customer_name": self.customer_name,
+            "line_items_input": self.line_items_input,
+        }
 
-        self.is_failure = True
-        if reason not in self.failure_reasons:
-            self.failure_reasons.append(reason)
 
-    def add_fallback_event(self, event: str) -> None:
-        """Record that a present value would trigger parser fallback.
+@dataclass
+class LineItemAnalysis:
+    """Parsed state for one raw legacy line item."""
 
-        Args:
-            event: Field identifier used in the summary output.
-        """
+    index: int
+    name: str
+    raw_quantity: Any
+    raw_unit_price: Any
+    quantity: Optional[Decimal]
+    unit_price: Optional[Decimal]
+    quantity_problem: bool
+    unit_price_problem: bool
+    quantity_label: str
 
-        if event not in self.fallback_events:
-            self.fallback_events.append(event)
 
-    def add_missing_event(self, event: str, *, report_only: bool = False) -> None:
-        """Record that a required or notable value is missing.
+@dataclass
+class InspectionResult:
+    """Classification result for one invoice during batch inspection."""
 
-        Args:
-            event: Field identifier used in the summary output.
-            report_only: Whether the missing value should be tracked without failing the record.
-        """
+    invoice_id: str
+    file_label: str
+    invoice_number: str
+    review_rows: List[ReviewRow] = field(default_factory=list)
+    failure_row: Optional[FailureRow] = None
+    clean_invoice: Optional[LegacyInvoice] = None
 
-        if event not in self.missing_events:
-            self.missing_events.append(event)
-        if report_only and event not in self.report_only_events:
-            self.report_only_events.append(event)
+    @property
+    def is_clean(self) -> bool:
+        """Return `True` when the invoice can be processed without review."""
 
-    def add_invalid_event(self, event: str) -> None:
-        """Record that a field contains an invalid non-missing value.
+        return self.failure_row is None and not self.review_rows and self.clean_invoice is not None
 
-        Args:
-            event: Field identifier used in the summary output.
-        """
+    @property
+    def is_reviewable(self) -> bool:
+        """Return `True` when the invoice requires human review before upload."""
 
-        if event not in self.invalid_events:
-            self.invalid_events.append(event)
+        return self.failure_row is None and bool(self.review_rows)
 
-    def add_negative_event(self, event: str) -> None:
-        """Record that a numeric field contains a negative value.
+    @property
+    def is_failure(self) -> bool:
+        """Return `True` when the invoice is permanently unprocessable."""
 
-        Args:
-            event: Field identifier used in the summary output.
-        """
+        return self.failure_row is not None
 
-        if event not in self.negative_events:
-            self.negative_events.append(event)
+
+@dataclass
+class BatchPaths:
+    """Filesystem paths for one batch's persisted review artifacts."""
+
+    batch_id: str
+    batch_dir: str
+    review_csv_path: str
+    failures_csv_path: str
 
 
 def money_to_cents(value: Decimal) -> int:
@@ -172,8 +218,7 @@ def normalize_due_date(due_date: dt.date, *, today: Optional[dt.date] = None) ->
         due_date: Due date parsed from the legacy invoice.
         today: Optional override used to compare against the current date.
     """
-    # TODO: add one day delta to normalize date function
-    
+
     if today is None:
         today = dt.date.today()
     return max(due_date, today)
@@ -245,6 +290,55 @@ def try_parse_line_items(value: Any) -> tuple[Optional[List[Any]], bool]:
     return parsed, False
 
 
+def normalize_optional_string(value: Any) -> Optional[str]:
+    """Trim a raw string value and return `None` when it is blank.
+
+    Args:
+        value: Raw field value from the legacy export.
+    """
+
+    if is_missing_value(value):
+        return None
+    return str(value).strip()
+
+
+def stringify_value(value: Any) -> str:
+    """Render a raw value into a stable CSV-friendly string.
+
+    Args:
+        value: Raw or derived value that should be written to CSV.
+    """
+
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
+def decimal_to_text(value: Decimal) -> str:
+    """Format a decimal for CSV and human-readable summaries.
+
+    Args:
+        value: Decimal value to render.
+    """
+
+    text = format(value, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def quantity_to_text(value: Decimal) -> str:
+    """Format a quantity decimal the way Square expects it.
+
+    Args:
+        value: Decimal quantity to render.
+    """
+
+    return decimal_to_text(value)
+
+
 def get_record_file_label(record: Dict[str, Any], index: int) -> str:
     """Build a human-readable label for one source file/record.
 
@@ -262,236 +356,520 @@ def get_record_file_label(record: Dict[str, Any], index: int) -> str:
     return f"record-{index + 1}"
 
 
-def validate_optional_date_field(value: Any, field_name: str, report: DryRunRecordReport) -> None:
-    """Track parse fallback for an optional date field when a present value is invalid.
+def build_review_row(invoice_id: str, field_name: str, input_value: Any, fallback: Any = "") -> ReviewRow:
+    """Create one review row with consistent string normalization.
 
     Args:
-        value: Raw date value to validate.
-        field_name: Summary/report field name.
-        report: Dry-run report being populated.
+        invoice_id: Batch-local invoice ID.
+        field_name: Human-readable field name used in `review.csv`.
+        input_value: Raw or derived value shown to the reviewer.
+        fallback: Proposed fallback value that can be approved with `x`.
     """
 
-    if is_missing_value(value):
-        return
-    if try_parse_iso_date(value) is None:
-        report.add_fallback_event(field_name)
+    if isinstance(fallback, Decimal):
+        fallback_text = decimal_to_text(fallback)
+    else:
+        fallback_text = stringify_value(fallback)
+    return ReviewRow(
+        invoice_id=invoice_id,
+        field_name=field_name,
+        input_value=stringify_value(input_value),
+        fallback=fallback_text,
+    )
 
 
-def validate_nonnegative_decimal_field(
-    value: Any,
-    field_name: str,
-    report: DryRunRecordReport,
-    *,
-    missing_behavior: str,
-    context_label: str,
-) -> None:
-    """Validate one numeric field under the dry-run rules.
+def build_failure_row(
+    invoice_id: str,
+    file_label: str,
+    invoice_number: str,
+    failure_reason: str,
+    customer_name: Optional[str],
+    line_items_input: Any,
+) -> FailureRow:
+    """Create one permanent-failure row for `failures.csv`.
 
     Args:
-        value: Raw numeric value to validate.
-        field_name: Summary/report field name.
-        report: Dry-run report being populated.
-        missing_behavior: Either `fail` or `report_only` for missing values.
-        context_label: Human-readable field label for per-record failure messages.
+        invoice_id: Batch-local invoice ID.
+        file_label: Human-readable source label for the record.
+        invoice_number: Legacy invoice number when available.
+        failure_reason: Explanation of why the invoice cannot be processed.
+        customer_name: Raw customer name value.
+        line_items_input: Raw `Line_Items` source value.
     """
 
-    if is_missing_value(value):
-        report.add_missing_event(field_name, report_only=missing_behavior == "report_only")
-        if missing_behavior == "fail":
-            report.add_failure_reason(f"missing {context_label}")
-        return
-
-    parsed_value = try_parse_decimal(value)
-    if parsed_value is None:
-        report.add_fallback_event(field_name)
-        report.add_invalid_event(field_name)
-        report.add_failure_reason(f"invalid {context_label}")
-        return
-
-    if parsed_value < 0:
-        report.add_negative_event(field_name)
-        report.add_failure_reason(f"negative {context_label}")
+    return FailureRow(
+        invoice_id=invoice_id,
+        file_label=file_label,
+        invoice_number=invoice_number,
+        failure_reason=failure_reason,
+        customer_name=customer_name or "",
+        line_items_input=stringify_value(line_items_input),
+    )
 
 
-def validate_line_items(value: Any, report: DryRunRecordReport) -> None:
-    """Validate line-item structure and required numeric fields for dry-run.
+def analyze_line_item(raw_item: Any, index: int) -> LineItemAnalysis:
+    """Parse one raw legacy line item into validation metadata.
 
     Args:
-        value: Raw `Line_Items` value from the legacy export.
-        report: Dry-run report being populated.
+        raw_item: One element from the legacy `Line_Items` JSON array.
+        index: One-based line-item index used in field names.
     """
 
-    if is_missing_value(value):
-        report.add_missing_event("Line_Items")
-        report.add_failure_reason("missing Line_Items")
-        return
-
-    parsed_items, is_invalid = try_parse_line_items(value)
-    if is_invalid or parsed_items is None:
-        report.add_invalid_event("Line_Items")
-        report.add_failure_reason("invalid Line_Items")
-        return
-
-    if not parsed_items:
-        report.add_invalid_event("Line_Items")
-        report.add_failure_reason("Line_Items is empty")
-        return
-
-    for index, item in enumerate(parsed_items, start=1):
-        if not isinstance(item, dict):
-            report.add_invalid_event("Line_Items")
-            report.add_failure_reason(f"line item {index} is not an object")
-            continue
-
-        validate_nonnegative_decimal_field(
-            item.get("Quantity"),
-            "Line_Items.Quantity",
-            report,
-            missing_behavior="fail",
-            context_label=f"line item {index} Quantity",
-        )
-        validate_nonnegative_decimal_field(
-            item.get("Unit Price"),
-            "Line_Items.Unit Price",
-            report,
-            missing_behavior="fail",
-            context_label=f"line item {index} Unit Price",
-        )
-        validate_nonnegative_decimal_field(
-            item.get("Line Total"),
-            "Line_Items.Line Total",
-            report,
-            missing_behavior="fail",
-            context_label=f"line item {index} Line Total",
+    if not isinstance(raw_item, dict):
+        return LineItemAnalysis(
+            index=index,
+            name=f"Line {index}",
+            raw_quantity=None,
+            raw_unit_price=None,
+            quantity=None,
+            unit_price=None,
+            quantity_problem=True,
+            unit_price_problem=True,
+            quantity_label="quantity unknown",
         )
 
+    name = str(raw_item.get("Description") or f"Line {index}")
+    raw_quantity = raw_item.get("Quantity")
+    raw_unit_price = raw_item.get("Unit Price")
+    quantity = try_parse_decimal(raw_quantity)
+    unit_price = try_parse_decimal(raw_unit_price)
 
-def validate_record_for_dry_run(record: Dict[str, Any], index: int) -> DryRunRecordReport:
-    """Validate one raw record and return the dry-run reporting data.
+    quantity_problem = is_missing_value(raw_quantity) or quantity is None or quantity <= 0
+    unit_price_problem = is_missing_value(raw_unit_price) or unit_price is None or unit_price < 0
+
+    if quantity_problem:
+        quantity_label = "quantity unknown"
+    else:
+        quantity_label = f"qty {quantity_to_text(quantity)}"
+
+    return LineItemAnalysis(
+        index=index,
+        name=name,
+        raw_quantity=raw_quantity,
+        raw_unit_price=raw_unit_price,
+        quantity=quantity if not quantity_problem else None,
+        unit_price=unit_price if not unit_price_problem else None,
+        quantity_problem=quantity_problem,
+        unit_price_problem=unit_price_problem,
+        quantity_label=quantity_label,
+    )
+
+
+def build_combined_line_description(items: List[LineItemAnalysis]) -> str:
+    """Summarize broken line items for the synthetic combined-line review row.
+
+    Args:
+        items: Broken line items being merged into one fallback line.
+    """
+
+    parts = [f"{item.name} ({item.quantity_label})" for item in items]
+    return "; ".join(parts) if parts else "missing line items"
+
+
+def build_clean_invoice_from_flattened(
+    invoice_id: str,
+    flattened: Dict[str, Any],
+    line_items: List[NormalizedLineItem],
+) -> LegacyInvoice:
+    """Build a `LegacyInvoice` when no human review is required.
+
+    Args:
+        invoice_id: Batch-local invoice ID.
+        flattened: Flattened key/value map for the record.
+        line_items: Already validated line items ready for upload.
+    """
+
+    today = dt.date.today()
+    invoice_date_raw = normalize_optional_string(flattened.get("Invoice_Date"))
+    due_date_raw = normalize_optional_string(flattened.get("Due_Date"))
+    invoice_date = parse_iso_date(invoice_date_raw, fallback=today).isoformat()
+    due_date = parse_iso_date(due_date_raw, fallback=today).isoformat()
+
+    subtotal_raw = flattened.get("Subtotal")
+    subtotal = try_parse_decimal(subtotal_raw)
+    if subtotal is not None and subtotal < 0:
+        subtotal = None
+
+    return LegacyInvoice(
+        invoice_id=invoice_id,
+        invoice_number=str(flattened.get("Invoice_Number") or "UNKNOWN"),
+        invoice_date=invoice_date,
+        due_date=due_date,
+        customer_name=str(flattened.get("Customer_Name") or "Unknown Customer"),
+        customer_email=normalize_optional_string(flattened.get("Customer_Email")),
+        customer_phone=normalize_optional_string(flattened.get("Customer_Phone_Number")),
+        customer_address=normalize_optional_string(flattened.get("Customer_Address")),
+        service_notes=normalize_optional_string(flattened.get("Service_Notes")),
+        line_items=line_items,
+        subtotal=subtotal,
+        sales_tax=parse_decimal(str(flattened.get("Sales_Tax") or "0")),
+    )
+
+
+def inspect_record(record: Dict[str, Any], index: int) -> InspectionResult:
+    """Classify one record as clean, reviewable, or permanently failed.
 
     Args:
         record: One raw record object from the legacy export JSON.
         index: Zero-based position of the record in the source file.
     """
 
+    invoice_id = str(index + 1)
     flattened = flatten_record(record)
+    file_label = get_record_file_label(record, index)
     invoice_number = str(flattened.get("Invoice_Number") or "UNKNOWN")
-    report = DryRunRecordReport(
-        file_label=get_record_file_label(record, index),
+    customer_name = normalize_optional_string(flattened.get("Customer_Name"))
+    review_rows: List[ReviewRow] = []
+    review_fields: set[str] = set()
+    today_text = dt.date.today().isoformat()
+
+    def add_review(field_name: str, input_value: Any, fallback: Any = "") -> None:
+        """Add a review row once per field name for this invoice."""
+
+        if field_name in review_fields:
+            return
+        review_fields.add(field_name)
+        review_rows.append(build_review_row(invoice_id, field_name, input_value, fallback))
+
+    line_items_raw = flattened.get("Line_Items")
+    subtotal_raw = flattened.get("Subtotal")
+    subtotal_missing = is_missing_value(subtotal_raw)
+    subtotal_value = try_parse_decimal(subtotal_raw)
+    subtotal_invalid = not subtotal_missing and (subtotal_value is None or subtotal_value < 0)
+
+    invoice_date_raw = flattened.get("Invoice_Date")
+    due_date_raw = flattened.get("Due_Date")
+    if not is_missing_value(invoice_date_raw) and try_parse_iso_date(invoice_date_raw) is None:
+        add_review("Invoice Date", invoice_date_raw, today_text)
+    if not is_missing_value(due_date_raw) and try_parse_iso_date(due_date_raw) is None:
+        add_review("Due Date", due_date_raw, today_text)
+
+    if customer_name is None:
+        return InspectionResult(
+            invoice_id=invoice_id,
+            file_label=file_label,
+            invoice_number=invoice_number,
+            failure_row=build_failure_row(
+                invoice_id,
+                file_label,
+                invoice_number,
+                "missing customer name",
+                customer_name,
+                line_items_raw,
+            ),
+        )
+
+    parsed_items, line_items_invalid = try_parse_line_items(line_items_raw)
+    if line_items_invalid or parsed_items is None or not parsed_items:
+        if subtotal_missing:
+            return InspectionResult(
+                invoice_id=invoice_id,
+                file_label=file_label,
+                invoice_number=invoice_number,
+                failure_row=build_failure_row(
+                    invoice_id,
+                    file_label,
+                    invoice_number,
+                    "missing line items and subtotal",
+                    customer_name,
+                    line_items_raw,
+                ),
+            )
+        if subtotal_invalid:
+            add_review("Subtotal", subtotal_raw)
+            return InspectionResult(invoice_id, file_label, invoice_number, review_rows=review_rows)
+
+        add_review("Combined Line Item Amount", "missing line items", subtotal_value)
+        return InspectionResult(invoice_id, file_label, invoice_number, review_rows=review_rows)
+
+    analyses = [analyze_line_item(item, item_index) for item_index, item in enumerate(parsed_items, start=1)]
+    unit_price_broken = any(analysis.unit_price_problem for analysis in analyses)
+
+    if unit_price_broken:
+        if subtotal_missing:
+            return InspectionResult(
+                invoice_id=invoice_id,
+                file_label=file_label,
+                invoice_number=invoice_number,
+                failure_row=build_failure_row(
+                    invoice_id,
+                    file_label,
+                    invoice_number,
+                    "missing line-item amount and subtotal",
+                    customer_name,
+                    line_items_raw,
+                ),
+            )
+        if subtotal_invalid:
+            add_review("Subtotal", subtotal_raw)
+            return InspectionResult(invoice_id, file_label, invoice_number, review_rows=review_rows)
+
+        valid_sum = Decimal("0")
+        broken_group: List[LineItemAnalysis] = []
+        for analysis in analyses:
+            if analysis.unit_price_problem or analysis.quantity_problem:
+                broken_group.append(analysis)
+                continue
+            valid_sum += analysis.quantity * analysis.unit_price
+
+        combined_amount = subtotal_value - valid_sum
+        combined_description = build_combined_line_description(broken_group)
+        add_review("Combined Line Item Amount", combined_description, combined_amount)
+        return InspectionResult(invoice_id, file_label, invoice_number, review_rows=review_rows)
+
+    clean_line_items: List[NormalizedLineItem] = []
+    for analysis in analyses:
+        if analysis.quantity_problem:
+            add_review(f"Line {analysis.index} Quantity", analysis.raw_quantity, "1")
+            continue
+        clean_line_items.append(
+            NormalizedLineItem(
+                name=analysis.name,
+                quantity=analysis.quantity,
+                unit_price=analysis.unit_price,
+            )
+        )
+
+    if review_rows:
+        return InspectionResult(invoice_id, file_label, invoice_number, review_rows=review_rows)
+
+    return InspectionResult(
+        invoice_id=invoice_id,
+        file_label=file_label,
         invoice_number=invoice_number,
+        clean_invoice=build_clean_invoice_from_flattened(invoice_id, flattened, clean_line_items),
     )
 
-    validate_optional_date_field(flattened.get("Invoice_Date"), "Invoice_Date", report)
-    validate_optional_date_field(flattened.get("Due_Date"), "Due_Date", report)
-    validate_nonnegative_decimal_field(
-        flattened.get("Subtotal"),
-        "Subtotal",
-        report,
-        missing_behavior="fail",
-        context_label="Subtotal",
-    )
-    validate_nonnegative_decimal_field(
-        flattened.get("Total_Amount_Due"),
-        "Total_Amount_Due",
-        report,
-        missing_behavior="report_only",
-        context_label="Total_Amount_Due",
-    )
-    validate_line_items(flattened.get("Line_Items"), report)
-    return report
 
-
-def format_record_status(report: DryRunRecordReport) -> str:
-    """Format a compact dry-run status line for one record.
+def review_row_is_resolved(row: ReviewRow) -> bool:
+    """Return `True` when a review row has a usable human decision.
 
     Args:
-        report: Dry-run report for one record.
+        row: Review row loaded from or written to `review.csv`.
     """
 
-    status = "FAIL" if report.is_failure else "OK"
-    details: List[str] = []
-
-    if report.is_failure and report.failure_reasons:
-        preview = report.failure_reasons[:3]
-        reason_text = "; ".join(preview)
-        if len(report.failure_reasons) > 3:
-            reason_text += f"; +{len(report.failure_reasons) - 3} more"
-        details.append(reason_text)
-    if report.fallback_events:
-        details.append(f"fallbacks: {', '.join(report.fallback_events)}")
-    if report.report_only_events:
-        details.append(f"report-only: {', '.join(report.report_only_events)}")
-
-    suffix = f" :: {' | '.join(details)}" if details else ""
-    return f"[DRY-RUN] {status} {report.file_label} (invoice #{report.invoice_number}){suffix}"
+    if row.manual_adjustment.strip():
+        return True
+    return row.use_fallback.strip().lower() == "x" and bool(row.fallback.strip())
 
 
-def print_dry_run_summary(reports: List[DryRunRecordReport]) -> None:
-    """Print overall and per-field dry-run validation totals.
+def review_row_selected_value(row: ReviewRow) -> Optional[str]:
+    """Return the resolved value selected by the reviewer, if any.
 
     Args:
-        reports: All dry-run reports generated for the import input.
+        row: Review row loaded from or written to `review.csv`.
     """
 
-    fallback_counts = Counter(event for report in reports for event in report.fallback_events)
-    missing_counts = Counter(event for report in reports for event in report.missing_events)
-    invalid_counts = Counter(event for report in reports for event in report.invalid_events)
-    negative_counts = Counter(event for report in reports for event in report.negative_events)
-    report_only_counts = Counter(event for report in reports for event in report.report_only_events)
-
-    print("\nDry-run summary:")
-    print(f"- Files processed: {len(reports)}")
-    print(f"- Success: {sum(1 for report in reports if not report.is_failure)}")
-    print(f"- Failed: {sum(1 for report in reports if report.is_failure)}")
-    print(f"- Files with parse fallbacks: {sum(1 for report in reports if report.fallback_events)}")
-
-    if fallback_counts:
-        print("- Fallback counts:")
-        for field_name in sorted(fallback_counts):
-            print(f"  - {field_name}: {fallback_counts[field_name]}")
-
-    if missing_counts:
-        print("- Missing counts:")
-        for field_name in sorted(missing_counts):
-            suffix = " (report-only)" if field_name in report_only_counts else ""
-            print(f"  - {field_name}: {missing_counts[field_name]}{suffix}")
-
-    if invalid_counts:
-        print("- Invalid counts:")
-        for field_name in sorted(invalid_counts):
-            print(f"  - {field_name}: {invalid_counts[field_name]}")
-
-    if negative_counts:
-        print("- Negative counts:")
-        for field_name in sorted(negative_counts):
-            print(f"  - {field_name}: {negative_counts[field_name]}")
+    manual_value = row.manual_adjustment.strip()
+    if manual_value:
+        return manual_value
+    if row.use_fallback.strip().lower() == "x" and row.fallback.strip():
+        return row.fallback.strip()
+    return None
 
 
-def parse_record(record: Dict[str, Any]) -> LegacyInvoice:
-    """Flatten one legacy export record into a strongly typed `LegacyInvoice`.
+def review_rows_to_map(rows: List[ReviewRow]) -> Dict[str, Dict[str, ReviewRow]]:
+    """Index review rows by invoice ID and field name.
+
+    Args:
+        rows: Review rows loaded from `review.csv`.
+    """
+
+    indexed: Dict[str, Dict[str, ReviewRow]] = {}
+    for row in rows:
+        indexed.setdefault(row.invoice_id, {})[row.field_name] = row
+    return indexed
+
+
+def resolve_date_for_runtime(raw_value: Any, field_name: str, review_lookup: Dict[str, ReviewRow]) -> Optional[str]:
+    """Resolve a date field using raw data plus any reviewer decision.
+
+    Args:
+        raw_value: Raw source value for the date field.
+        field_name: Review CSV field name for this date.
+        review_lookup: Resolved review rows for the invoice keyed by field name.
+    """
+
+    chosen_value = raw_value
+    if field_name in review_lookup:
+        chosen_value = review_row_selected_value(review_lookup[field_name])
+    if is_missing_value(chosen_value):
+        return dt.date.today().isoformat()
+    parsed = try_parse_iso_date(chosen_value)
+    if parsed is None:
+        return None
+    return parsed.isoformat()
+
+
+def resolve_subtotal_for_runtime(flattened: Dict[str, Any], review_lookup: Dict[str, ReviewRow]) -> Optional[Decimal]:
+    """Resolve subtotal from raw data or a manual review override.
+
+    Args:
+        flattened: Flattened key/value map for the record.
+        review_lookup: Resolved review rows for the invoice keyed by field name.
+    """
+
+    chosen_value: Any = flattened.get("Subtotal")
+    if "Subtotal" in review_lookup:
+        chosen_value = review_row_selected_value(review_lookup["Subtotal"])
+    if is_missing_value(chosen_value):
+        return None
+    parsed = try_parse_decimal(chosen_value)
+    if parsed is None or parsed < 0:
+        return None
+    return parsed
+
+
+def resolve_quantity_for_runtime(analysis: LineItemAnalysis, review_lookup: Dict[str, ReviewRow]) -> Optional[Decimal]:
+    """Resolve a line-item quantity from raw data or a review decision.
+
+    Args:
+        analysis: Parsed line-item analysis from the raw record.
+        review_lookup: Resolved review rows for the invoice keyed by field name.
+    """
+
+    if not analysis.quantity_problem:
+        return analysis.quantity
+
+    field_name = f"Line {analysis.index} Quantity"
+    row = review_lookup.get(field_name)
+    if row is None:
+        return None
+    selected_value = review_row_selected_value(row)
+    if selected_value is None:
+        return None
+    parsed = try_parse_decimal(selected_value)
+    if parsed is None or parsed <= 0:
+        return None
+    return parsed
+
+
+def resolve_combined_amount_for_runtime(
+    default_amount: Decimal,
+    review_lookup: Dict[str, ReviewRow],
+) -> Optional[Decimal]:
+    """Resolve the synthetic combined-line amount from review decisions.
+
+    Args:
+        default_amount: Computed subtotal remainder when no manual override is used.
+        review_lookup: Resolved review rows for the invoice keyed by field name.
+    """
+
+    row = review_lookup.get("Combined Line Item Amount")
+    if row is None:
+        return default_amount
+    selected_value = review_row_selected_value(row)
+    if selected_value is None:
+        return None
+    parsed = try_parse_decimal(selected_value)
+    if parsed is None or parsed < 0:
+        return None
+    return parsed
+
+
+def build_invoice_from_record(
+    record: Dict[str, Any],
+    index: int,
+    review_lookup: Optional[Dict[str, ReviewRow]] = None,
+) -> Optional[LegacyInvoice]:
+    """Build an uploadable invoice from raw data plus any resolved review rows.
 
     Args:
         record: One raw record object from the legacy export JSON.
+        index: Zero-based position of the record in the source file.
+        review_lookup: Review rows for this invoice keyed by field name.
     """
 
+    if review_lookup is None:
+        review_lookup = {}
+
+    invoice_id = str(index + 1)
     flattened = flatten_record(record)
-    line_items, _ = try_parse_line_items(flattened.get("Line_Items"))
-    if line_items is None:
-        line_items = []
+    customer_name = normalize_optional_string(flattened.get("Customer_Name"))
+    if customer_name is None:
+        return None
+
+    invoice_date = resolve_date_for_runtime(flattened.get("Invoice_Date"), "Invoice Date", review_lookup)
+    due_date = resolve_date_for_runtime(flattened.get("Due_Date"), "Due Date", review_lookup)
+    if invoice_date is None or due_date is None:
+        return None
+
+    subtotal = resolve_subtotal_for_runtime(flattened, review_lookup)
+    parsed_items, line_items_invalid = try_parse_line_items(flattened.get("Line_Items"))
+    final_line_items: List[NormalizedLineItem] = []
+
+    if line_items_invalid or parsed_items is None or not parsed_items:
+        if subtotal is None:
+            return None
+        combined_amount = resolve_combined_amount_for_runtime(subtotal, review_lookup)
+        if combined_amount is None:
+            return None
+        final_line_items.append(
+            NormalizedLineItem(
+                name="combined line item",
+                quantity=Decimal("1"),
+                unit_price=combined_amount,
+                note="missing line items",
+            )
+        )
+    else:
+        analyses = [analyze_line_item(item, item_index) for item_index, item in enumerate(parsed_items, start=1)]
+        unit_price_broken = any(analysis.unit_price_problem for analysis in analyses)
+
+        if unit_price_broken:
+            if subtotal is None:
+                return None
+            valid_sum = Decimal("0")
+            broken_group: List[LineItemAnalysis] = []
+            for analysis in analyses:
+                if analysis.unit_price_problem or analysis.quantity_problem:
+                    broken_group.append(analysis)
+                    continue
+                valid_sum += analysis.quantity * analysis.unit_price
+                final_line_items.append(
+                    NormalizedLineItem(
+                        name=analysis.name,
+                        quantity=analysis.quantity,
+                        unit_price=analysis.unit_price,
+                    )
+                )
+            combined_amount = resolve_combined_amount_for_runtime(subtotal - valid_sum, review_lookup)
+            if combined_amount is None:
+                return None
+            final_line_items.append(
+                NormalizedLineItem(
+                    name="combined line item",
+                    quantity=Decimal("1"),
+                    unit_price=combined_amount,
+                    note=build_combined_line_description(broken_group),
+                )
+            )
+        else:
+            for analysis in analyses:
+                quantity = resolve_quantity_for_runtime(analysis, review_lookup)
+                if quantity is None:
+                    return None
+                final_line_items.append(
+                    NormalizedLineItem(
+                        name=analysis.name,
+                        quantity=quantity,
+                        unit_price=analysis.unit_price,
+                    )
+                )
 
     return LegacyInvoice(
+        invoice_id=invoice_id,
         invoice_number=str(flattened.get("Invoice_Number") or "UNKNOWN"),
-        invoice_date=str(flattened.get("Invoice_Date") or dt.date.today().isoformat()),
-        due_date=str(flattened.get("Due_Date") or dt.date.today().isoformat()),
-        customer_name=str(flattened.get("Customer_Name") or "Unknown Customer"),
-        customer_email=flattened.get("Customer_Email"),
-        customer_phone=flattened.get("Customer_Phone_Number"),
-        customer_address=flattened.get("Customer_Address"),
-        service_notes=flattened.get("Service_Notes"),
-        line_items=line_items,
-        subtotal=parse_decimal(flattened.get("Subtotal")),
-        sales_tax=parse_decimal(flattened.get("Sales_Tax")),
-        total_due=parse_decimal(flattened.get("Total_Amount_Due")),
+        invoice_date=invoice_date,
+        due_date=due_date,
+        customer_name=customer_name,
+        customer_email=normalize_optional_string(flattened.get("Customer_Email")),
+        customer_phone=normalize_optional_string(flattened.get("Customer_Phone_Number")),
+        customer_address=normalize_optional_string(flattened.get("Customer_Address")),
+        service_notes=normalize_optional_string(flattened.get("Service_Notes")),
+        line_items=final_line_items,
+        subtotal=subtotal,
+        sales_tax=parse_decimal(str(flattened.get("Sales_Tax") or "0")),
     )
 
 
@@ -570,7 +948,6 @@ class SquareClient:
         """
 
         if invoice.customer_email:
-            # Email is the best stable identifier available in the legacy data.
             search_payload = {
                 "query": {"filter": {"email_address": {"exact": invoice.customer_email}}},
                 "limit": 1,
@@ -601,28 +978,26 @@ class SquareClient:
         """
 
         lines = []
-        for raw in invoice.line_items:
-            qty = str(raw.get("Quantity") or "1")
-            unit_price = parse_decimal(str(raw.get("Unit Price") or "0"))
+        for item in invoice.line_items:
             lines.append(
                 {
-                    "name": str(raw.get("Description") or "Service"),
-                    "quantity": qty,
+                    "name": item.name or "Service",
+                    "quantity": quantity_to_text(item.quantity),
                     "base_price_money": {
-                        "amount": money_to_cents(unit_price),
+                        "amount": money_to_cents(item.unit_price),
                         "currency": DEFAULT_CURRENCY,
                     },
                 }
             )
 
-        if not lines:
-            # If the legacy payload has no structured line items, preserve the total anyway.
+        if not lines and invoice.subtotal is not None:
+            # Keep a final subtotal-based safeguard if upstream logic ever hands us no lines.
             lines.append(
                 {
-                    "name": "Imported legacy invoice total",
+                    "name": "combined line item",
                     "quantity": "1",
                     "base_price_money": {
-                        "amount": money_to_cents(invoice.total_due), #TODO: set to subtotal to avoid double taxation. if not subtotal use total_due
+                        "amount": money_to_cents(invoice.subtotal),
                         "currency": DEFAULT_CURRENCY,
                     },
                 }
@@ -714,17 +1089,6 @@ class SquareClient:
         return response["invoice"]
 
 
-def load_legacy_invoices(path: str) -> List[LegacyInvoice]:
-    """Load the legacy export file and parse each record into a `LegacyInvoice`.
-
-    Args:
-        path: Filesystem path to the JSON export file.
-    """
-
-    records = load_legacy_records(path)
-    return [parse_record(record) for record in records]
-
-
 def load_legacy_records(path: str) -> List[Dict[str, Any]]:
     """Load the raw legacy export records from disk.
 
@@ -747,6 +1111,253 @@ def get_client_from_env() -> SquareClient:
     return SquareClient(access_token=token, location_id=location_id)
 
 
+def load_batch_registry() -> Dict[str, Any]:
+    """Load the batch registry JSON from the app root."""
+
+    if not os.path.exists(BATCH_REGISTRY_PATH):
+        return {}
+    with open(BATCH_REGISTRY_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_batch_registry(registry: Dict[str, Any]) -> None:
+    """Persist the batch registry JSON to the app root.
+
+    Args:
+        registry: Registry payload to save.
+    """
+
+    with open(BATCH_REGISTRY_PATH, "w", encoding="utf-8") as f:
+        json.dump(registry, f, indent=2, sort_keys=True)
+
+
+def ensure_batch_paths(batch_id: str, batch_root: str) -> BatchPaths:
+    """Resolve and create filesystem paths for one batch.
+
+    Args:
+        batch_id: User-entered batch identifier.
+        batch_root: Directory under which batch folders are created.
+    """
+
+    batch_dir = os.path.abspath(os.path.join(batch_root, batch_id))
+    os.makedirs(batch_dir, exist_ok=True)
+    return BatchPaths(
+        batch_id=batch_id,
+        batch_dir=batch_dir,
+        review_csv_path=os.path.join(batch_dir, REVIEW_CSV_NAME),
+        failures_csv_path=os.path.join(batch_dir, FAILURES_CSV_NAME),
+    )
+
+
+def validate_existing_batch(
+    registry_entry: Dict[str, Any],
+    batch_paths: BatchPaths,
+    input_path: str,
+    record_count: int,
+) -> None:
+    """Fail fast when a batch is rerun against a different input shape.
+
+    Args:
+        registry_entry: Existing batch metadata loaded from the registry.
+        batch_paths: Filesystem paths resolved for the current batch invocation.
+        input_path: Absolute input JSON path passed to the CLI.
+        record_count: Number of records loaded from that input.
+    """
+
+    if registry_entry.get("input_path") != input_path:
+        raise SystemExit("Batch ID already exists for a different input file.")
+    if registry_entry.get("record_count") != record_count:
+        raise SystemExit("Batch ID already exists with a different record count.")
+    if registry_entry.get("batch_dir") != batch_paths.batch_dir:
+        raise SystemExit("Batch ID already exists in a different batch directory.")
+
+
+def upsert_batch_registry_entry(
+    registry: Dict[str, Any],
+    batch_paths: BatchPaths,
+    input_path: str,
+    record_count: int,
+    stored_summary: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Create or update the registry entry for one batch.
+
+    Args:
+        registry: Entire batch registry object.
+        batch_paths: Filesystem paths resolved for the current batch invocation.
+        input_path: Absolute input JSON path passed to the CLI.
+        record_count: Number of records loaded from that input.
+        stored_summary: Optional summary payload to persist for later dry-run reuse.
+    """
+
+    entry = registry.setdefault(batch_paths.batch_id, {})
+    entry.update(
+        {
+            "batch_id": batch_paths.batch_id,
+            "batch_dir": batch_paths.batch_dir,
+            "input_path": input_path,
+            "record_count": record_count,
+            "invoice_ids": [str(index + 1) for index in range(record_count)],
+            "review_csv_path": batch_paths.review_csv_path,
+            "failures_csv_path": batch_paths.failures_csv_path,
+        }
+    )
+    if stored_summary is not None:
+        entry["stored_summary"] = stored_summary
+
+
+def write_review_csv(path: str, rows: List[ReviewRow]) -> None:
+    """Write `review.csv`, preserving only the columns used by the workflow.
+
+    Args:
+        path: Destination CSV path.
+        rows: Review rows to write.
+    """
+
+    fieldnames = ["invoice_id", "field_name", "input", "fallback", "use_fallback", "manual_adjustment"]
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row.to_csv_row())
+
+
+def write_failures_csv(path: str, rows: List[FailureRow]) -> None:
+    """Write `failures.csv` for permanently failed invoices.
+
+    Args:
+        path: Destination CSV path.
+        rows: Failure rows to write.
+    """
+
+    fieldnames = [
+        "invoice_id",
+        "file_label",
+        "invoice_number",
+        "failure_reason",
+        "customer_name",
+        "line_items_input",
+    ]
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row.to_csv_row())
+
+
+def load_review_csv(path: str) -> List[ReviewRow]:
+    """Load review rows from an existing `review.csv`.
+
+    Args:
+        path: CSV path to load.
+    """
+
+    if not os.path.exists(path):
+        return []
+    rows: List[ReviewRow] = []
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            rows.append(
+                ReviewRow(
+                    invoice_id=row.get("invoice_id", ""),
+                    field_name=row.get("field_name", ""),
+                    input_value=row.get("input", ""),
+                    fallback=row.get("fallback", ""),
+                    use_fallback=row.get("use_fallback", ""),
+                    manual_adjustment=row.get("manual_adjustment", ""),
+                )
+            )
+    return rows
+
+
+def load_failures_csv(path: str) -> List[FailureRow]:
+    """Load permanent-failure rows from an existing `failures.csv`.
+
+    Args:
+        path: CSV path to load.
+    """
+
+    if not os.path.exists(path):
+        return []
+    rows: List[FailureRow] = []
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            rows.append(
+                FailureRow(
+                    invoice_id=row.get("invoice_id", ""),
+                    file_label=row.get("file_label", ""),
+                    invoice_number=row.get("invoice_number", ""),
+                    failure_reason=row.get("failure_reason", ""),
+                    customer_name=row.get("customer_name", ""),
+                    line_items_input=row.get("line_items_input", ""),
+                )
+            )
+    return rows
+
+
+def classify_records(records: List[Dict[str, Any]]) -> List[InspectionResult]:
+    """Inspect every record in the input file.
+
+    Args:
+        records: Raw records loaded from the legacy JSON input.
+    """
+
+    return [inspect_record(record, index) for index, record in enumerate(records)]
+
+
+def collect_review_rows(results: List[InspectionResult]) -> List[ReviewRow]:
+    """Flatten review rows across all inspected invoices.
+
+    Args:
+        results: Batch inspection results.
+    """
+
+    return [row for result in results for row in result.review_rows]
+
+
+def collect_failure_rows(results: List[InspectionResult]) -> List[FailureRow]:
+    """Flatten failure rows across all inspected invoices.
+
+    Args:
+        results: Batch inspection results.
+    """
+
+    return [result.failure_row for result in results if result.failure_row is not None]
+
+
+def build_dry_run_summary(results: List[InspectionResult]) -> Dict[str, Any]:
+    """Create the summary payload printed and stored for dry-run.
+
+    Args:
+        results: Batch inspection results.
+    """
+
+    return {
+        "mode": "dry-run",
+        "files_processed": len(results),
+        "clean_invoices": sum(1 for result in results if result.is_clean),
+        "queued_for_review": sum(1 for result in results if result.is_reviewable),
+        "permanent_failures": sum(1 for result in results if result.is_failure),
+    }
+
+
+def print_summary(summary: Dict[str, Any]) -> None:
+    """Print a compact terminal summary for dry-run or production.
+
+    Args:
+        summary: Summary payload to render.
+    """
+
+    title = "Dry-run summary:" if summary.get("mode") == "dry-run" else "Import summary:"
+    print(title)
+    for key, value in summary.items():
+        if key == "mode":
+            continue
+        label = key.replace("_", " ").capitalize()
+        print(f"- {label}: {value}")
+
+
 def run_test_connection() -> int:
     """CLI handler for validating Square credentials and location access."""
 
@@ -759,55 +1370,187 @@ def run_test_connection() -> int:
     return 0
 
 
-def run_import(path: str, dry_run: bool) -> int:
-    """CLI handler that imports each legacy invoice through the full Square flow.
+def run_initial_dry_run(
+    records: List[Dict[str, Any]],
+    registry: Dict[str, Any],
+    batch_paths: BatchPaths,
+    input_path: str,
+) -> int:
+    """Perform the first dry-run for a batch and persist review artifacts.
 
     Args:
-        path: Filesystem path to the legacy invoice JSON file.
-        dry_run: When `True`, print intended actions without calling Square APIs.
+        records: Raw legacy records loaded from input.
+        registry: Loaded batch registry object.
+        batch_paths: Filesystem paths for the batch.
+        input_path: Absolute input JSON path.
     """
 
-    records = load_legacy_records(path)
-    print(f"Loaded {len(records)} invoices from {path}")
+    results = classify_records(records)
+    review_rows = collect_review_rows(results)
+    failure_rows = collect_failure_rows(results)
+    summary = build_dry_run_summary(results)
 
-    if dry_run:
-        reports = [validate_record_for_dry_run(record, index) for index, record in enumerate(records)]
-        for report in reports:
-            print(format_record_status(report))
-        print_dry_run_summary(reports)
-        return 1 if any(report.is_failure for report in reports) else 0
+    write_review_csv(batch_paths.review_csv_path, review_rows)
+    write_failures_csv(batch_paths.failures_csv_path, failure_rows)
+    upsert_batch_registry_entry(registry, batch_paths, input_path, len(records), stored_summary=summary)
+    save_batch_registry(registry)
 
-    client = get_client_from_env()
-    invoices = [parse_record(record) for record in records]
+    print_summary(summary)
+    return 1 if failure_rows else 0
 
-    succeeded = 0
-    failed = 0
 
-    for invoice in invoices:
-        print(f"\nProcessing invoice #{invoice.invoice_number} for {invoice.customer_name}")
-        if dry_run:
-            # Dry-run mode confirms parsing and intended actions without mutating Square.
-            print("[DRY-RUN] would create customer, order, invoice, publish, and cancel (close-out strategy).")
-            succeeded += 1
+def run_dry_run(
+    records: List[Dict[str, Any]],
+    registry: Dict[str, Any],
+    batch_paths: BatchPaths,
+    input_path: str,
+) -> int:
+    """Run the batch dry-run workflow.
+
+    Args:
+        records: Raw legacy records loaded from input.
+        registry: Loaded batch registry object.
+        batch_paths: Filesystem paths for the batch.
+        input_path: Absolute input JSON path.
+    """
+
+    entry = registry.get(batch_paths.batch_id)
+    if entry is not None:
+        validate_existing_batch(entry, batch_paths, input_path, len(records))
+        if os.path.exists(batch_paths.review_csv_path):
+            stored_summary = entry.get("stored_summary")
+            if stored_summary is None:
+                raise SystemExit("Batch exists but has no stored summary to reuse.")
+            print_summary(stored_summary)
+            return 0
+
+    return run_initial_dry_run(records, registry, batch_paths, input_path)
+
+
+def run_production_import(
+    records: List[Dict[str, Any]],
+    registry: Dict[str, Any],
+    batch_paths: BatchPaths,
+    input_path: str,
+) -> int:
+    """Run the production import workflow with persisted human review state.
+
+    Args:
+        records: Raw legacy records loaded from input.
+        registry: Loaded batch registry object.
+        batch_paths: Filesystem paths for the batch.
+        input_path: Absolute input JSON path.
+    """
+
+    entry = registry.get(batch_paths.batch_id)
+    if entry is not None:
+        validate_existing_batch(entry, batch_paths, input_path, len(records))
+
+    if entry is None or not os.path.exists(batch_paths.review_csv_path):
+        # First production run still classifies the batch so unresolved issues never reach the API.
+        results = classify_records(records)
+        write_review_csv(batch_paths.review_csv_path, collect_review_rows(results))
+        write_failures_csv(batch_paths.failures_csv_path, collect_failure_rows(results))
+        upsert_batch_registry_entry(
+            registry,
+            batch_paths,
+            input_path,
+            len(records),
+            stored_summary=build_dry_run_summary(results),
+        )
+        save_batch_registry(registry)
+    else:
+        upsert_batch_registry_entry(registry, batch_paths, input_path, len(records))
+        save_batch_registry(registry)
+
+    failure_rows = load_failures_csv(batch_paths.failures_csv_path)
+    review_rows = load_review_csv(batch_paths.review_csv_path)
+    failure_ids = {row.invoice_id for row in failure_rows}
+    review_lookup_by_invoice = review_rows_to_map(review_rows)
+
+    client: Optional[SquareClient] = None
+    processed = 0
+    queued_for_review = 0
+    skipped_due_to_unresolved_review_rows = 0
+    skipped_due_to_failures = 0
+    permanent_failures = len(failure_rows)
+    api_errors = 0
+
+    for index, record in enumerate(records):
+        invoice_id = str(index + 1)
+        if invoice_id in failure_ids:
+            skipped_due_to_failures += 1
+            continue
+
+        inspection = inspect_record(record, index)
+        if inspection.is_failure:
+            # Existing failures are already captured on first classification.
+            skipped_due_to_failures += 1
+            continue
+
+        invoice_review_lookup = review_lookup_by_invoice.get(invoice_id, {})
+        if inspection.review_rows:
+            unresolved = False
+            for expected_row in inspection.review_rows:
+                stored_row = invoice_review_lookup.get(expected_row.field_name)
+                if stored_row is None or not review_row_is_resolved(stored_row):
+                    unresolved = True
+                    break
+            if unresolved:
+                queued_for_review += 1
+                skipped_due_to_unresolved_review_rows += 1
+                continue
+
+        invoice = inspection.clean_invoice or build_invoice_from_record(record, index, invoice_review_lookup)
+        if invoice is None:
+            queued_for_review += 1
+            skipped_due_to_unresolved_review_rows += 1
             continue
 
         try:
-            # The import strategy is: ensure customer -> create order -> draft invoice
-            # -> publish invoice -> cancel invoice so the historical record ends closed.
+            if client is None:
+                client = get_client_from_env()
             customer_id = client.upsert_customer(invoice)
             created_order_id = client.create_order(invoice, customer_id)
             draft = client.create_invoice(invoice, created_order_id, customer_id)
             published = client.publish_invoice(draft["id"], draft["version"])
-            canceled = client.cancel_invoice(published["id"], published["version"])
+            client.cancel_invoice(published["id"], published["version"])
+            processed += 1
+        except SquareAPIError:
+            api_errors += 1
 
-            print(f"Invoice {published['id']} published then canceled (status={canceled.get('status')}).")
-            succeeded += 1
-        except SquareAPIError as exc:
-            failed += 1
-            print(f"ERROR: {exc}")
+    summary = {
+        "mode": "production",
+        "files_processed": len(records),
+        "processed": processed,
+        "queued_for_review": queued_for_review,
+        "skipped_due_to_unresolved_review_rows": skipped_due_to_unresolved_review_rows,
+        "skipped_due_to_failures": skipped_due_to_failures,
+        "permanent_failures": permanent_failures,
+        "api_errors": api_errors,
+    }
+    print_summary(summary)
+    return 1 if skipped_due_to_failures or skipped_due_to_unresolved_review_rows or api_errors else 0
 
-    print(f"\nImport complete. Success: {succeeded}, Failed: {failed}")
-    return 1 if failed else 0
+
+def run_import(path: str, dry_run: bool, batch_id: str, batch_root: str) -> int:
+    """CLI handler that validates/imports a batch of legacy invoices.
+
+    Args:
+        path: Filesystem path to the legacy invoice JSON file.
+        dry_run: When `True`, build review artifacts without calling Square APIs.
+        batch_id: User-entered batch identifier that groups review artifacts together.
+        batch_root: Directory under which batch folders are created.
+    """
+
+    records = load_legacy_records(path)
+    input_path = os.path.abspath(path)
+    batch_paths = ensure_batch_paths(batch_id, batch_root)
+    registry = load_batch_registry()
+
+    if dry_run:
+        return run_dry_run(records, registry, batch_paths, input_path)
+    return run_production_import(records, registry, batch_paths, input_path)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -821,8 +1564,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     import_cmd = subparsers.add_parser("import", help="Import legacy invoice JSON into Square.")
     import_cmd.add_argument("--input", required=True, help="Path to JSON payload (same structure as results.json)")
-    import_cmd.add_argument("--dry-run", action="store_true", help="Parse and print actions without calling Square APIs")
-    import_cmd.set_defaults(func=lambda args: run_import(args.input, args.dry_run))
+    import_cmd.add_argument("--dry-run", action="store_true", help="Build review files without calling Square APIs")
+    import_cmd.add_argument("--batch-id", required=True, help="User-defined batch identifier for this import set")
+    import_cmd.add_argument("--batch-root", required=True, help="Directory where batch review artifacts are stored")
+    import_cmd.set_defaults(func=lambda args: run_import(args.input, args.dry_run, args.batch_id, args.batch_root))
 
     return parser
 

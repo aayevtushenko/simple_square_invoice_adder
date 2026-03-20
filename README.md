@@ -63,18 +63,30 @@ python square_invoice_backloader.py test-connection
 
 ### 2) Dry-run import
 
-Validates each input record, reports missing vs invalid values, summarizes parse fallbacks,
-and shows what would happen without mutating Square:
+Creates batch-scoped `review.csv` / `failures.csv` artifacts, stores batch metadata,
+and prints only a summary without mutating Square:
 
 ```bash
-python square_invoice_backloader.py import --input results.json --dry-run
+python square_invoice_backloader.py import \
+  --input results.json \
+  --dry-run \
+  --batch-id my-batch \
+  --batch-root ./batches
 ```
 
 ### 3) Real import
 
 ```bash
-python square_invoice_backloader.py import --input results.json
+python square_invoice_backloader.py import \
+  --input results.json \
+  --batch-id my-batch \
+  --batch-root ./batches
 ```
+
+Batch behavior:
+- The first dry run for a batch writes `review.csv`, `failures.csv`, and batch metadata.
+- Later dry runs for the same batch print the stored summary instead of rescanning.
+- Production uses resolved review rows and skips unresolved or permanently failed invoices.
 
 ### 4) Cleanup utility (delete imported invoices)
 
@@ -100,7 +112,7 @@ The input JSON should contain:
   - `Invoice_Number`, `Invoice_Date`, `Due_Date`
   - `Customer_Name`, `Customer_Email`, etc.
   - `Line_Items` as JSON-stringified array
-  - `Total_Amount_Due`
+  - `Subtotal`
 
 This exactly matches the example file already in the repo.
 

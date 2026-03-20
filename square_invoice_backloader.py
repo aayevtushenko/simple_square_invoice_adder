@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Backload legacy invoices into Square and close them out by cancellation."""
 
+# TODO: add default phone number for when the number fails validation
+
 from __future__ import annotations
 
 import argparse

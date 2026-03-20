@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Backload legacy invoices into Square and close them out by cancellation."""
 
-# TODO: add default phone number for when the number fails validation
+# TODO: add default phone number for when the number 
 
 from __future__ import annotations
 
@@ -172,6 +172,8 @@ def normalize_due_date(due_date: dt.date, *, today: Optional[dt.date] = None) ->
         due_date: Due date parsed from the legacy invoice.
         today: Optional override used to compare against the current date.
     """
+    # TODO: add one day delta to normalize date function
+    
     if today is None:
         today = dt.date.today()
     return max(due_date, today)

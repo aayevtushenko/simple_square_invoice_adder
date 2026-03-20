@@ -17,6 +17,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import requests
 from requests import RequestException
 
+# Toggle this constant when switching between the live Square API and sandbox.
 # SQUARE_API_BASE = "https://connect.squareup.com"
 SQUARE_API_BASE = "https://connect.squareupsandbox.com"
 
@@ -24,11 +25,15 @@ DEFAULT_CURRENCY = "USD"
 
 
 class SquareAPIError(RuntimeError):
+    """Raised when a Square API request fails or returns an error response."""
+
     pass
 
 
 @dataclass
 class LegacyInvoice:
+    """Normalized invoice data extracted from the legacy JSON export."""
+
     invoice_number: str
     invoice_date: str
     due_date: str
@@ -44,10 +49,23 @@ class LegacyInvoice:
 
 
 def money_to_cents(value: Decimal) -> int:
+    """Convert a decimal dollar amount into the integer cents Square expects.
+
+    Args:
+        value: Currency amount in dollars represented as a `Decimal`.
+    """
+
     return int((value * 100).quantize(Decimal("1")))
 
 
 def parse_decimal(value: str, *, default: str = "0") -> Decimal:
+    """Safely parse a decimal string, falling back when input is blank or invalid.
+
+    Args:
+        value: Raw numeric string read from the legacy data source.
+        default: Decimal string to use when `value` cannot be parsed.
+    """
+
     try:
         return Decimal(value)
     except (InvalidOperation, TypeError):
@@ -55,6 +73,13 @@ def parse_decimal(value: str, *, default: str = "0") -> Decimal:
 
 
 def parse_iso_date(value: Optional[str], *, fallback: dt.date) -> dt.date:
+    """Parse an ISO date string and return a fallback date when parsing fails.
+
+    Args:
+        value: Optional date string in ISO format such as `YYYY-MM-DD`.
+        fallback: Date to return when the input is blank or invalid.
+    """
+
     if not value:
         return fallback
     try:
@@ -70,6 +95,10 @@ def normalize_due_date(due_date: dt.date, *, today: Optional[dt.date] = None) ->
     future `scheduled_at` leaves the invoice in a "scheduled" state after publish.
     To mimic Dashboard behavior ("Due today"), clamp due date to today-or-later and
     omit `scheduled_at` completely.
+
+    Args:
+        due_date: Due date parsed from the legacy invoice.
+        today: Optional override used to compare against the current date.
     """
     if today is None:
         today = dt.date.today()
@@ -77,10 +106,18 @@ def normalize_due_date(due_date: dt.date, *, today: Optional[dt.date] = None) ->
 
 
 def parse_record(record: Dict[str, Any]) -> LegacyInvoice:
+    """Flatten one legacy export record into a strongly typed `LegacyInvoice`.
+
+    Args:
+        record: One raw record object from the legacy export JSON.
+    """
+
+    # The source JSON stores each field as {"key": "...", "value": "..."} pairs.
     flattened = {item["key"]: item.get("value") for item in record.get("results", [])}
 
     line_items_raw = flattened.get("Line_Items") or "[]"
     try:
+        # Line items are themselves stored as a JSON string inside the record.
         line_items = json.loads(line_items_raw)
         if not isinstance(line_items, list):
             line_items = []
@@ -104,7 +141,17 @@ def parse_record(record: Dict[str, Any]) -> LegacyInvoice:
 
 
 class SquareClient:
+    """Small wrapper around the Square REST API used by this script."""
+
     def __init__(self, access_token: str, location_id: str, timeout: int = 30) -> None:
+        """Create a reusable API session configured for one Square location.
+
+        Args:
+            access_token: Square personal access token or OAuth access token.
+            location_id: Square location where imported records should be created.
+            timeout: Request timeout in seconds for each API call.
+        """
+
         self.location_id = location_id
         self.timeout = timeout
         self.session = requests.Session()
@@ -117,6 +164,14 @@ class SquareClient:
         )
 
     def _request(self, method: str, path: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Send one HTTP request to Square and raise a friendly error on failure.
+
+        Args:
+            method: HTTP method such as `GET` or `POST`.
+            path: API path appended to `SQUARE_API_BASE`.
+            payload: Optional JSON body to send with the request.
+        """
+
         try:
             response = self.session.request(
                 method=method,
@@ -135,6 +190,12 @@ class SquareClient:
 
     @staticmethod
     def _strip_none(value: Any) -> Any:
+        """Recursively remove `None` values before sending payloads to Square.
+
+        Args:
+            value: Nested payload fragment that may contain dictionaries, lists, or scalars.
+        """
+
         if isinstance(value, dict):
             return {k: SquareClient._strip_none(v) for k, v in value.items() if v is not None}
         if isinstance(value, list):
@@ -142,10 +203,19 @@ class SquareClient:
         return value
 
     def test_connection(self) -> Dict[str, Any]:
+        """Verify credentials by listing locations visible to the access token."""
+
         return self._request("GET", "/v2/locations")
 
     def upsert_customer(self, invoice: LegacyInvoice) -> str:
+        """Find an existing customer by email or create a new one for the invoice.
+
+        Args:
+            invoice: Parsed legacy invoice containing customer details to match or create.
+        """
+
         if invoice.customer_email:
+            # Email is the best stable identifier available in the legacy data.
             search_payload = {
                 "query": {"filter": {"email_address": {"exact": invoice.customer_email}}},
                 "limit": 1,
@@ -168,6 +238,13 @@ class SquareClient:
         return result["customer"]["id"]
 
     def create_order(self, invoice: LegacyInvoice, customer_id: str) -> str:
+        """Create the Square order that the invoice will bill against.
+
+        Args:
+            invoice: Parsed legacy invoice whose line items will populate the order.
+            customer_id: Square customer ID that should own the order.
+        """
+
         lines = []
         for raw in invoice.line_items:
             qty = str(raw.get("Quantity") or "1")
@@ -184,6 +261,7 @@ class SquareClient:
             )
 
         if not lines:
+            # If the legacy payload has no structured line items, preserve the total anyway.
             lines.append(
                 {
                     "name": "Imported legacy invoice total",
@@ -208,6 +286,14 @@ class SquareClient:
         return response["order"]["id"]
 
     def create_invoice(self, invoice: LegacyInvoice, order_id: str, customer_id: str) -> Dict[str, Any]:
+        """Create a draft Square invoice linked to the previously created order.
+
+        Args:
+            invoice: Parsed legacy invoice containing dates, notes, and invoice metadata.
+            order_id: Square order ID created for the invoice charges.
+            customer_id: Square customer ID for the invoice recipient.
+        """
+
         today = dt.date.today()
         due_date_obj = parse_iso_date(invoice.due_date, fallback=today)
         adjusted_due_date = normalize_due_date(due_date_obj, today=today)
@@ -244,6 +330,13 @@ class SquareClient:
         return response["invoice"]
 
     def publish_invoice(self, invoice_id: str, version: int) -> Dict[str, Any]:
+        """Publish a draft invoice so it becomes an active Square invoice.
+
+        Args:
+            invoice_id: Square invoice ID for the draft invoice.
+            version: Current optimistic-lock version of the invoice object.
+        """
+
         payload = {
             "idempotency_key": str(uuid.uuid4()),
             "version": version,
@@ -252,6 +345,13 @@ class SquareClient:
         return response["invoice"]
 
     def cancel_invoice(self, invoice_id: str, version: int) -> Dict[str, Any]:
+        """Cancel a published invoice to mark the imported record as closed out.
+
+        Args:
+            invoice_id: Square invoice ID for the published invoice.
+            version: Current optimistic-lock version of the invoice object.
+        """
+
         payload = {
             "version": version,
         }
@@ -260,6 +360,12 @@ class SquareClient:
 
 
 def load_legacy_invoices(path: str) -> List[LegacyInvoice]:
+    """Load the legacy export file and parse each record into a `LegacyInvoice`.
+
+    Args:
+        path: Filesystem path to the JSON export file.
+    """
+
     with open(path, "r", encoding="utf-8") as f:
         raw = json.load(f)
     records = raw.get("records") or []
@@ -267,6 +373,8 @@ def load_legacy_invoices(path: str) -> List[LegacyInvoice]:
 
 
 def get_client_from_env() -> SquareClient:
+    """Build a `SquareClient` from the required environment variables."""
+
     token = os.getenv("SQUARE_ACCESS_TOKEN")
     location_id = os.getenv("SQUARE_LOCATION_ID")
     if not token or not location_id:
@@ -275,6 +383,8 @@ def get_client_from_env() -> SquareClient:
 
 
 def run_test_connection() -> int:
+    """CLI handler for validating Square credentials and location access."""
+
     client = get_client_from_env()
     result = client.test_connection()
     locations = result.get("locations", [])
@@ -285,6 +395,13 @@ def run_test_connection() -> int:
 
 
 def run_import(path: str, dry_run: bool) -> int:
+    """CLI handler that imports each legacy invoice through the full Square flow.
+
+    Args:
+        path: Filesystem path to the legacy invoice JSON file.
+        dry_run: When `True`, print intended actions without calling Square APIs.
+    """
+
     client = get_client_from_env()
     invoices = load_legacy_invoices(path)
     print(f"Loaded {len(invoices)} invoices from {path}")
@@ -295,11 +412,14 @@ def run_import(path: str, dry_run: bool) -> int:
     for invoice in invoices:
         print(f"\nProcessing invoice #{invoice.invoice_number} for {invoice.customer_name}")
         if dry_run:
+            # Dry-run mode confirms parsing and intended actions without mutating Square.
             print("[DRY-RUN] would create customer, order, invoice, publish, and cancel (close-out strategy).")
             succeeded += 1
             continue
 
         try:
+            # The import strategy is: ensure customer -> create order -> draft invoice
+            # -> publish invoice -> cancel invoice so the historical record ends closed.
             customer_id = client.upsert_customer(invoice)
             created_order_id = client.create_order(invoice, customer_id)
             draft = client.create_invoice(invoice, created_order_id, customer_id)
@@ -317,6 +437,8 @@ def run_import(path: str, dry_run: bool) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Define the command-line interface for the utility."""
+
     parser = argparse.ArgumentParser(description="Backload legacy invoices to Square.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -332,6 +454,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
+    """Parse CLI arguments and dispatch to the selected subcommand.
+
+    Args:
+        argv: Optional iterable of command-line arguments for testing or embedding.
+    """
+
     parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)

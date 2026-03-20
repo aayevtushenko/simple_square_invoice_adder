@@ -1,4 +1,4 @@
-invoice id,Field Name,input,X = ignore: 0 or date fallback will be used,manual adjustment
+invoice id,Field Name,input,Use Fallback,manual adjustment
 1,Invoice Total,0a.001,,0.001
 1,Invoice Subtotal,0.0001,x
 3,Invoice Date,2024-a01-01,,2024-01-01

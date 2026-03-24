@@ -4,6 +4,140 @@
     "batch_id": "1",
     "failures_csv_path": "/Users/RosalieByrnes/Documents/Dev Projects/invoice_adder_batches/1/failures.csv",
     "input_path": "/Users/RosalieByrnes/Documents/Dev Projects/greg_project/greg_invoices.json",
+    "invoice_contacts": {
+      "1": {
+        "customer_email": "steve@milesquarepm.com",
+        "customer_name": "Steve Mile Square Property Management",
+        "customer_phone": "2013567320",
+        "invoice_number": "2358"
+      },
+      "10": {
+        "customer_email": "steve@milesquarepm.com",
+        "customer_name": "Steve",
+        "customer_phone": "2013567320",
+        "invoice_number": "2023"
+      },
+      "11": {
+        "customer_email": "missing-email-0e105c28d5643a7867b7c15fb6de863e@missing.com",
+        "customer_name": "Pershing LLC",
+        "customer_phone": "12016801024",
+        "invoice_number": "1022"
+      },
+      "12": {
+        "customer_email": "management@pointcapdev.com",
+        "customer_name": "Point Capital Development",
+        "customer_phone": "12016801024",
+        "invoice_number": "1023"
+      },
+      "13": {
+        "customer_email": "accountspayable@pointcapdev.com",
+        "customer_name": "Point Capital Development",
+        "customer_phone": "12016801024",
+        "invoice_number": "1014"
+      },
+      "14": {
+        "customer_email": "missing-email-355fc70c9c3000c85862fc6bc2f7b2af@missing.com",
+        "customer_name": "Ardent Management",
+        "customer_phone": "",
+        "invoice_number": "1020"
+      },
+      "15": {
+        "customer_email": "missing-email-677eb231e6d7e013c1418cabc028fe05@missing.com",
+        "customer_name": "The Condo Residences at Grove Pointe",
+        "customer_phone": "",
+        "invoice_number": "1015"
+      },
+      "16": {
+        "customer_email": "steve@milesquarepm.com",
+        "customer_name": "Steve",
+        "customer_phone": "2013567320",
+        "invoice_number": "2023"
+      },
+      "18": {
+        "customer_email": "missing-email-f4590cec10eeffd81fbd7214256402c0@missing.com",
+        "customer_name": "Pershing LLC",
+        "customer_phone": "",
+        "invoice_number": "1022"
+      },
+      "19": {
+        "customer_email": "missing-email-a296204fa84214e2c8b23c3dbb33f293@missing.com",
+        "customer_name": "Pershing LLC",
+        "customer_phone": "",
+        "invoice_number": "2022"
+      },
+      "2": {
+        "customer_email": "steve@milesquarepm.com",
+        "customer_name": "Steve Mile Square Property Management",
+        "customer_phone": "2013567320",
+        "invoice_number": "2358"
+      },
+      "21": {
+        "customer_email": "steve@milesquarepm.com",
+        "customer_name": "Steve Mile Square PM",
+        "customer_phone": "2013567320",
+        "invoice_number": "2026"
+      },
+      "23": {
+        "customer_email": "missing-email-7a9ed798a720dff93c4b584435ab4314@missing.com",
+        "customer_name": "BIS Management Gerry Bakirty Architects",
+        "customer_phone": "",
+        "invoice_number": "100"
+      },
+      "24": {
+        "customer_email": "steve@milesquarepm.com",
+        "customer_name": "Steve",
+        "customer_phone": "2013567320",
+        "invoice_number": "2026"
+      },
+      "25": {
+        "customer_email": "steve@milesquarepm.com",
+        "customer_name": "Steve",
+        "customer_phone": "2013567320",
+        "invoice_number": "2024"
+      },
+      "26": {
+        "customer_email": "Rahid@bldgup.com",
+        "customer_name": "Att. Rahid",
+        "customer_phone": "9084729428",
+        "invoice_number": "2027"
+      },
+      "28": {
+        "customer_email": "missing-email-0500ca94e9a2802ef7990e2ad31c6145@missing.com",
+        "customer_name": "Ardent Management",
+        "customer_phone": "",
+        "invoice_number": "2121"
+      },
+      "4": {
+        "customer_email": "missing-email-e7a2a7dccb204d3910e6bcf9bff45d30@missing.com",
+        "customer_name": "BIS Management",
+        "customer_phone": "12016801024",
+        "invoice_number": "1002"
+      },
+      "5": {
+        "customer_email": "wbakirtjy@gmail.com",
+        "customer_name": "Wynne Bakirtjy",
+        "customer_phone": "9172701264",
+        "invoice_number": "2034"
+      },
+      "6": {
+        "customer_email": "steve@milesquarepm.com",
+        "customer_name": "Steve Mile Square Property Management",
+        "customer_phone": "2013567320",
+        "invoice_number": "2024"
+      },
+      "7": {
+        "customer_email": "steve@milesquarepm.com",
+        "customer_name": "Steve",
+        "customer_phone": "2013567320",
+        "invoice_number": "2026"
+      },
+      "8": {
+        "customer_email": "steve@milesquarepm.com",
+        "customer_name": "Mile Square PM",
+        "customer_phone": "2013567320",
+        "invoice_number": "2026"
+      }
+    },
     "invoice_ids": [
       "1",
       "2",
@@ -496,62 +630,6 @@
       "mode": "dry-run",
       "permanent_failures": 13,
       "queued_for_review": 19
-    }
-  },
-  "batchA": {
-    "batch_dir": "/tmp/codex-batches/batchA",
-    "batch_id": "batchA",
-    "failures_csv_path": "/tmp/codex-batches/batchA/failures.csv",
-    "input_path": "/Users/RosalieByrnes/Documents/Dev Projects/greg_project/simple_square_invoice_adder/results.json",
-    "invoice_ids": [
-      "1",
-      "2",
-      "3"
-    ],
-    "record_count": 3,
-    "review_csv_path": "/tmp/codex-batches/batchA/review.csv",
-    "stored_summary": {
-      "clean_invoices": 3,
-      "files_processed": 3,
-      "mode": "dry-run",
-      "permanent_failures": 0,
-      "queued_for_review": 0
-    }
-  },
-  "broken-batch": {
-    "batch_dir": "/tmp/codex-batches/broken-batch",
-    "batch_id": "broken-batch",
-    "failures_csv_path": "/tmp/codex-batches/broken-batch/failures.csv",
-    "input_path": "/var/folders/jv/qtm5h9f17yn80pl390tfm3g80000gn/T/invoice_batch_test_4ppuoojs/input.json",
-    "invoice_ids": [
-      "1"
-    ],
-    "record_count": 1,
-    "review_csv_path": "/tmp/codex-batches/broken-batch/review.csv",
-    "stored_summary": {
-      "clean_invoices": 0,
-      "files_processed": 1,
-      "mode": "dry-run",
-      "permanent_failures": 0,
-      "queued_for_review": 1
-    }
-  },
-  "broken-batch-2": {
-    "batch_dir": "/tmp/codex-batches/broken-batch-2",
-    "batch_id": "broken-batch-2",
-    "failures_csv_path": "/tmp/codex-batches/broken-batch-2/failures.csv",
-    "input_path": "/var/folders/jv/qtm5h9f17yn80pl390tfm3g80000gn/T/invoice_batch_test_4ppuoojs/input.json",
-    "invoice_ids": [
-      "1"
-    ],
-    "record_count": 1,
-    "review_csv_path": "/tmp/codex-batches/broken-batch-2/review.csv",
-    "stored_summary": {
-      "clean_invoices": 0,
-      "files_processed": 1,
-      "mode": "dry-run",
-      "permanent_failures": 0,
-      "queued_for_review": 1
     }
   }
 }

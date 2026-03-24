@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import datetime as dt
+import hashlib
 import json
 import os
 import sys
@@ -27,6 +28,8 @@ APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 BATCH_REGISTRY_PATH = os.path.join(APP_ROOT, "batch_registry.json")
 REVIEW_CSV_NAME = "review.csv"
 FAILURES_CSV_NAME = "failures.csv"
+FALLBACK_PHONE_NUMBER = "12016801024"
+FALLBACK_EMAIL_DOMAIN = "missing.com"
 
 
 class SquareAPIError(RuntimeError):
@@ -222,6 +225,35 @@ def normalize_due_date(due_date: dt.date, *, today: Optional[dt.date] = None) ->
     if today is None:
         today = dt.date.today()
     return max(due_date, today)
+
+
+def build_fallback_email(invoice: LegacyInvoice) -> str:
+    """Build a deterministic fallback email for invoices missing one."""
+
+    unique_seed = "|".join(
+        [
+            invoice.invoice_number or "",
+            invoice.invoice_id or "",
+            invoice.customer_name or "",
+            invoice.invoice_date or "",
+        ]
+    )
+    unique_hash = hashlib.md5(unique_seed.encode("utf-8")).hexdigest()
+    return f"missing-email-{unique_hash}@{FALLBACK_EMAIL_DOMAIN}"
+
+
+def resolve_invoice_contact_details(
+    invoice: LegacyInvoice,
+    stored_contacts: Optional[Dict[str, Any]] = None,
+) -> LegacyInvoice:
+    """Apply persisted or deterministic fallback contact details to an invoice."""
+
+    stored_contacts = stored_contacts or {}
+    resolved_email = invoice.customer_email or stored_contacts.get("customer_email") or build_fallback_email(invoice)
+    resolved_phone = invoice.customer_phone or stored_contacts.get("customer_phone") or FALLBACK_PHONE_NUMBER
+    invoice.customer_email = resolved_email
+    invoice.customer_phone = resolved_phone
+    return invoice
 
 
 def flatten_record(record: Dict[str, Any]) -> Dict[str, Any]:
@@ -1203,6 +1235,31 @@ def upsert_batch_registry_entry(
     )
     if stored_summary is not None:
         entry["stored_summary"] = stored_summary
+    entry.setdefault("invoice_contacts", {})
+
+
+def get_invoice_contact_entry(registry_entry: Dict[str, Any], invoice_id: str) -> Dict[str, Any]:
+    """Return persisted contact metadata for one invoice, if present."""
+
+    invoice_contacts = registry_entry.setdefault("invoice_contacts", {})
+    return invoice_contacts.get(invoice_id, {})
+
+
+def save_invoice_contact_entry(
+    registry: Dict[str, Any],
+    batch_id: str,
+    invoice: LegacyInvoice,
+) -> None:
+    """Persist the resolved contact details used for one imported invoice."""
+
+    batch_entry = registry.setdefault(batch_id, {})
+    invoice_contacts = batch_entry.setdefault("invoice_contacts", {})
+    invoice_contacts[invoice.invoice_id] = {
+        "invoice_number": invoice.invoice_number,
+        "customer_name": invoice.customer_name,
+        "customer_email": invoice.customer_email,
+        "customer_phone": invoice.customer_phone,
+    }
 
 
 def write_review_csv(path: str, rows: List[ReviewRow]) -> None:
@@ -1462,6 +1519,7 @@ def run_production_import(
     else:
         upsert_batch_registry_entry(registry, batch_paths, input_path, len(records))
         save_batch_registry(registry)
+    entry = registry[batch_paths.batch_id]
 
     failure_rows = load_failures_csv(batch_paths.failures_csv_path)
     review_rows = load_review_csv(batch_paths.review_csv_path)
@@ -1470,6 +1528,8 @@ def run_production_import(
 
     client: Optional[SquareClient] = None
     processed = 0
+    successful_operations = 0
+    failed_operations = 0
     queued_for_review = 0
     skipped_due_to_unresolved_review_rows = 0
     skipped_due_to_failures = 0
@@ -1478,14 +1538,27 @@ def run_production_import(
 
     for index, record in enumerate(records):
         invoice_id = str(index + 1)
+        file_label = get_record_file_label(record, index)
+        print(f"Processing file {file_label} ({index + 1}/{len(records)})...")
+
         if invoice_id in failure_ids:
             skipped_due_to_failures += 1
+            failed_operations += 1
+            print(
+                f"  Skipped: permanent failure already recorded. "
+                f"Successes: {successful_operations}, Failures: {failed_operations}"
+            )
             continue
 
         inspection = inspect_record(record, index)
         if inspection.is_failure:
             # Existing failures are already captured on first classification.
             skipped_due_to_failures += 1
+            failed_operations += 1
+            print(
+                f"  Skipped: invoice has a permanent failure. "
+                f"Successes: {successful_operations}, Failures: {failed_operations}"
+            )
             continue
 
         invoice_review_lookup = review_lookup_by_invoice.get(invoice_id, {})
@@ -1499,13 +1572,25 @@ def run_production_import(
             if unresolved:
                 queued_for_review += 1
                 skipped_due_to_unresolved_review_rows += 1
+                failed_operations += 1
+                print(
+                    f"  Skipped: unresolved review rows. "
+                    f"Successes: {successful_operations}, Failures: {failed_operations}"
+                )
                 continue
 
         invoice = inspection.clean_invoice or build_invoice_from_record(record, index, invoice_review_lookup)
         if invoice is None:
             queued_for_review += 1
             skipped_due_to_unresolved_review_rows += 1
+            failed_operations += 1
+            print(
+                f"  Skipped: invoice could not be built for import. "
+                f"Successes: {successful_operations}, Failures: {failed_operations}"
+            )
             continue
+
+        invoice = resolve_invoice_contact_details(invoice, get_invoice_contact_entry(entry, invoice_id))
 
         try:
             if client is None:
@@ -1515,14 +1600,22 @@ def run_production_import(
             draft = client.create_invoice(invoice, created_order_id, customer_id)
             published = client.publish_invoice(draft["id"], draft["version"])
             client.cancel_invoice(published["id"], published["version"])
+            save_invoice_contact_entry(registry, batch_paths.batch_id, invoice)
+            save_batch_registry(registry)
             processed += 1
-        except SquareAPIError:
+            successful_operations += 1
+            print(f"  Success. Successes: {successful_operations}, Failures: {failed_operations}")
+        except SquareAPIError as exc:
             api_errors += 1
+            failed_operations += 1
+            print(f"  Failed: {exc}. Successes: {successful_operations}, Failures: {failed_operations}")
 
     summary = {
         "mode": "production",
         "files_processed": len(records),
         "processed": processed,
+        "successful_operations": successful_operations,
+        "failed_operations": failed_operations,
         "queued_for_review": queued_for_review,
         "skipped_due_to_unresolved_review_rows": skipped_due_to_unresolved_review_rows,
         "skipped_due_to_failures": skipped_due_to_failures,

@@ -103,6 +103,36 @@ The input JSON should contain:
 
 This exactly matches the example file already in the repo.
 
+
+## Entity resolution review utility
+
+A new script, `entity_resolution_review.py`, performs lightweight customer entity resolution to flag likely duplicate customers caused by typos across invoices.
+
+### Generate a typo-heavy synthetic test set from existing data
+
+```bash
+python entity_resolution_review.py generate-test-set   --input results.json   --output test_data/entity_resolution_synthetic.json   --variants-per-customer 6
+```
+
+### Evaluate matching approaches on labeled synthetic data
+
+```bash
+python entity_resolution_review.py evaluate   --input test_data/entity_resolution_synthetic.json   --approach all
+```
+
+Included approaches:
+- `exact`: strict exact match on normalized name + phone + address.
+- `contact`: duplicate if email OR phone matches exactly.
+- `light`: weighted fuzzy score using name/address similarity plus phone/email boosts.
+
+### Review real input files for duplicate candidates
+
+```bash
+python entity_resolution_review.py review --input results.json --approach light
+```
+
+This prints candidate duplicate groups for manual review before creating customers in Square.
+
 ## Notes
 
 - Keep `--dry-run` as your default while iterating.

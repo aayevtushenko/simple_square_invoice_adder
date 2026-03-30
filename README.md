@@ -108,3 +108,37 @@ This exactly matches the example file already in the repo.
 - Keep `--dry-run` as your default while iterating.
 - Use a Square sandbox or controlled account when first running real imports.
 - Depending on Square account rules, you may need to adjust accepted payment methods or external payment detail type.
+
+## Entity resolution pre-check (duplicate customer detection)
+
+A lightweight review script is included to flag likely duplicate customers before import, even when names/addresses/phones contain typos:
+
+```bash
+python entity_resolution_review.py review --input results.json --mode hybrid --threshold 0.8
+```
+
+### Generate synthetic typo test data from existing records
+
+Use the existing JSON as a template and create realistic typo variants for evaluation:
+
+```bash
+python entity_resolution_review.py generate-synthetic \
+  --input results.json \
+  --output testdata/entity_resolution_synthetic.json
+```
+
+### Evaluate matching strategies
+
+The synthetic test file includes ground truth labels, so you can compare strategies:
+
+```bash
+python entity_resolution_review.py evaluate \
+  --input testdata/entity_resolution_synthetic.json \
+  --threshold 0.8
+```
+
+Available modes:
+- `strict`: only exact email/phone matches.
+- `contact`: contact-heavy weighted scoring.
+- `fuzzy`: name/address similarity only.
+- `hybrid`: exact-contact anchors + fuzzy fallback (recommended starter mode).
